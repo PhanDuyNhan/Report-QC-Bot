@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QC AI Result Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js">
+// ── Raw Record Browser ────────────────────────────────────────
+let allRaw = [];
+let currentRec = 0;
+
+function showRaw(idx) {
+  if (!allRaw.length) return;
+  if (idx === undefined) {
+    idx = parseInt(document.getElementById('recInput').value) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= allRaw.length) idx = 0;
+  }
+  currentRec = idx;
+  document.getElementById('recInput').value = idx + 1;
+  document.getElementById('recNav').textContent = `${idx+1} / ${allRaw.length}`;
+
+  const r = allRaw[idx];
+  const keys = Object.keys(r);
+
+  // Separate thinking/output columns from other metadata
+  const thinkOutputKeys = keys.filter(k => k.toLowerCase().includes('thinking') || k.toLowerCase().includes('output'));
+  const metaKeys = keys.filter(k => !thinkOutputKeys.includes(k));
+
+  function renderVal(val, isJson) {
+    if (typeof val === 'string' && (val.trim().startsWith('[') || val.trim().startsWith('{'))) {
+      try {
+        const parsed = JSON.parse(val);
+        return `<pre style="white-space:pre-wrap;word-break:break-all;color:#4ade80;font-size:0.82em;margin:0;font-family:Calibri,Arial,sans-serif">${JSON.stringify(parsed, null, 2)}</pre>`;
+      } catch {}
+    }
+    if (Array.isArray(val)) {
+      return `<pre style="white-space:pre-wrap;word-break:break-all;color:#4ade80;font-size:0.82em;margin:0;font-family:Calibri,Arial,sans-serif">${JSON.stringify(val, null, 2)}</pre>`;
+    }
+    return `<div style="color:#e2e8f0;font-size:0.84em;white-space:pre-wrap;word-break:break-all;line-height:1.6;font-family:Calibri,Arial,sans-serif">${escapeHtml(String(val ?? ''))}</div>`;
+  }
+
+  // Separate input/system_prompt from tiny meta
+  const bigTextKeys  = metaKeys.filter(k => ['input','system_prompt','system prompt'].includes(k.toLowerCase()));
+  const smallMetaKeys = metaKeys.filter(k => !['input','system_prompt','system prompt'].includes(k.toLowerCase()));
+
+  // Small chips for IDs/sources etc
+  const metaHtml = smallMetaKeys.map(k => `
+    <div style="display:inline-flex;flex-direction:column;margin-right:16px;margin-bottom:8px;vertical-align:top">
+      <span style="color:#475569;font-size:0.72em;text-transform:uppercase;letter-spacing:0.05em">${escapeHtml(k)}</span>
+      <span style="color:#e2e8f0;font-size:0.82em">${escapeHtml(String(r[k] ?? '').slice(0,120))}</span>
+    </div>`).join('');
+
+  // Big text blocks for input/system_prompt — collapsible
+  const bigTextHtml = bigTextKeys.map(k => {
+    const val = escapeHtml(String(r[k] ?? ''));
+    const id  = 'collapse_' + k + '_' + idx;
+    return `
+      <div style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <span style="color:#64748b;font-size:0.75em;text-transform:uppercase;letter-spacing:0.05em;font-weight:bold">${escapeHtml(k)}</span>
+          <button onclick="toggleCollapse('${id}')" style="background:#334155;border:none;color:#94a3b8;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:0.72em;font-family:Calibri,Arial,sans-serif">toggle</button>
+        </div>
+        <div id="${id}" style="background:#0f172a;padding:10px;border-radius:8px;max-height:120px;overflow-y:auto;display:block">
+          <div style="color:#e2e8f0;font-size:0.84em;white-space:pre-wrap;word-break:break-all;line-height:1.6;font-family:Calibri,Arial,sans-serif">${val}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Left/right columns for thinking and output
+  const colCount = thinkOutputKeys.length;
+  const colWidth = colCount > 0 ? Math.floor(100/colCount) : 100;
+
+  const colHtml = thinkOutputKeys.map(k => {
+    const colColor = k.toLowerCase().includes('gold') ? '#38bdf8' : '#c084fc';
+    return `
+      <div style="flex:1;min-width:0;padding:0 8px">
+        <div style="color:${colColor};font-size:0.75em;font-weight:bold;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid ${colColor}">${escapeHtml(k)}</div>
+        <div style="background:#0f172a;padding:12px;border-radius:8px;max-height:500px;overflow-y:auto">
+          ${renderVal(r[k])}
+        </div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('rawRecord').innerHTML = `
+    <div style="background:#0f172a;border-radius:10px;padding:16px;font-family:Calibri,Arial,sans-serif">
+      <div style="color:#64748b;font-size:0.78em;margin-bottom:12px">${keys.length} columns · Record ${idx+1} of ${allRaw.length}</div>
+
+      <!-- Meta chips -->
+      ${smallMetaKeys.length ? `<div style="background:#1e293b;padding:12px;border-radius:8px;margin-bottom:10px">${metaHtml}</div>` : ''}
+
+      <!-- Input / System Prompt -->
+      ${bigTextKeys.length ? `<div style="background:#1e293b;padding:12px;border-radius:8px;margin-bottom:14px">${bigTextHtml}</div>` : ''}
+
+      <!-- Side by side thinking + output -->
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        ${colHtml || '<div style="color:#64748b">No thinking/output columns found</div>'}
+      </div>
+    </div>`;
+}
+
+function prevRec() { if (currentRec > 0) showRaw(currentRec - 1); }
+function nextRec() { if (currentRec < allRaw.length - 1) showRaw(currentRec + 1); }
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Hook into processData to store raw records
+const _origProcess = processData;
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft')  prevRec();
+  if (e.key === 'ArrowRight') nextRec();
+});
+
+
+function toggleCollapse(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f172a; color: #e2e8f0; font-family: Calibri, 'Segoe UI', Arial, sans-serif; min-height: 100vh; padding: 24px; }
+
+  h1 { color: #38bdf8; font-size: 1.4em; margin-bottom: 4px; }
+  .subtitle { color: #64748b; font-size: 0.85em; margin-bottom: 24px; }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed #334155;
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    margin-bottom: 24px;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: #38bdf8; }
+  .upload-zone input { display: none; }
+  .upload-icon { font-size: 2.5em; margin-bottom: 12px; }
+  .upload-label { color: #94a3b8; font-size: 0.9em; }
+  .upload-label span { color: #38bdf8; cursor: pointer; }
+
+  /* Stats cards */
+  .cards { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+  .card {
+    background: #1e293b;
+    border-radius: 10px;
+    padding: 14px 20px;
+    text-align: center;
+    min-width: 100px;
+    flex: 1;
+  }
+  .card .val { font-size: 1.8em; font-weight: bold; }
+  .card .lbl { color: #94a3b8; font-size: 0.75em; margin-top: 2px; }
+  .card.blue .val { color: #38bdf8; }
+  .card.green .val { color: #4ade80; }
+  .card.yellow .val { color: #facc15; }
+  .card.red .val { color: #f87171; }
+  .card.gray .val { color: #94a3b8; }
+
+  /* Charts */
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .chart-box {
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .chart-box.full { grid-column: 1 / -1; }
+  .chart-title { color: #94a3b8; font-size: 0.8em; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* Per-step table */
+  .table-box { background: #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 24px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+  th { color: #64748b; text-align: left; padding: 8px; border-bottom: 1px solid #0f172a; }
+  td { padding: 8px; border-bottom: 1px solid #0f172a; }
+  .badge { padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em; }
+  .badge.green { background: #4ade80; color: #000; }
+  .badge.yellow { background: #facc15; color: #000; }
+  .badge.red { background: #f87171; color: #000; }
+
+  /* Wrong cases */
+  .wrong-box { background: #1e293b; border-radius: 12px; padding: 16px; }
+  .wrong-title { color: #94a3b8; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+  .step-filter { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .step-btn {
+    background: #0f172a;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    padding: 4px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8em;
+    font-family: monospace;
+  }
+  .step-btn.active { background: #38bdf8; color: #000; border-color: #38bdf8; }
+  .case-card {
+    background: #0f172a;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 10px;
+    border-left: 3px solid #334155;
+  }
+  .case-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+  .case-id { color: #64748b; font-size: 0.8em; }
+  .case-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .case-col { background: #1e293b; padding: 10px; border-radius: 6px; }
+  .case-col-title { font-size: 0.75em; font-weight: bold; margin-bottom: 6px; }
+  .gold-col .case-col-title { color: #38bdf8; }
+  .pred-col .case-col-title { color: #c084fc; }
+  .case-text { color: #94a3b8; font-size: 0.78em; line-height: 1.5; }
+
+  /* Error state */
+  .error-msg { background: #1e293b; border-left: 3px solid #f87171; padding: 12px 16px; border-radius: 8px; color: #f87171; font-size: 0.85em; margin-bottom: 16px; display: none; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<h1>📊 QC AI Result Dashboard</h1>
+<p class="subtitle">Drag & drop a .jsonl result file — supports gold_output / prediction_output format</p>
+
+<!-- Upload -->
+<div class="upload-zone" id="dropzone">
+  <input type="file" id="fileInput" accept=".jsonl,.json">
+  <div class="upload-icon">📂</div>
+  <div class="upload-label">
+    Drop <b>.jsonl</b> file here or <span onclick="document.getElementById('fileInput').click()">browse</span>
+  </div>
+  <div style="color:#475569;font-size:0.78em;margin-top:8px;">
+    Required columns: <code>gold_output</code> · <code>prediction_output</code>
+  </div>
+</div>
+
+<div class="error-msg" id="errorMsg"></div>
+
+<!-- Dashboard (hidden until file loaded) -->
+<div id="dashboard" class="hidden">
+  <div class="cards" id="cards"></div>
+
+  <div class="charts">
+    <div class="chart-box">
+      <div class="chart-title">Per-Step Accuracy %</div>
+      <canvas id="accChart" height="220"></canvas>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">Correct vs Wrong Count</div>
+      <canvas id="stackChart" height="220"></canvas>
+    </div>
+    <div class="chart-box full">
+      <div class="chart-title">Per-Record Accuracy</div>
+      <canvas id="recChart" height="140"></canvas>
+    </div>
+  </div>
+
+  <div class="table-box">
+    <div class="chart-title" style="margin-bottom:12px">Per-Step Summary</div>
+    <table>
+      <thead><tr><th>Step</th><th>Correct</th><th>Wrong</th><th>Total</th><th>Accuracy</th></tr></thead>
+      <tbody id="stepTable"></tbody>
+    </table>
+  </div>
+
+  <div class="wrong-box">
+    <div class="wrong-title">Wrong Cases Browser</div>
+    <div class="step-filter" id="stepFilter"></div>
+    <div id="wrongCases"></div>
+  </div>
+</div>
+
+
+  <div class="wrong-box" style="margin-top:16px" id="rawBrowserBox">
+    <div class="wrong-title">Raw Record Browser</div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+      <input type="number" id="recInput" min="1" placeholder="Record #"
+        style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:6px 10px;border-radius:6px;width:110px;font-family:monospace;font-size:0.85em">
+      <button onclick="showRaw()" class="step-btn active" style="background:#38bdf8;color:#000;border-color:#38bdf8">Show Record</button>
+      <button onclick="prevRec()" class="step-btn">◀ Prev</button>
+      <button onclick="nextRec()" class="step-btn">Next ▶</button>
+      <span id="recNav" style="color:#64748b;font-size:0.8em"></span>
+    </div>
+    <div id="rawRecord"></div>
+  </div>
+<script>
+// ── Helpers ──────────────────────────────────────────────────
+function extractJsonArray(text) {
+  if (!text || text === 'None') return [];
+  text = text.replace(/<\|im_end\|>/g,'').replace(/<\|im_start\|>/g,'').trim();
+  text = text.replace(/```json/g,'').replace(/```/g,'');
+  const matches = [...text.matchAll(/\[\s*\{[\s\S]*?\}\s*\]/g)];
+  for (const m of matches.reverse()) {
+    try {
+      const p = JSON.parse(m[0]);
+      if (Array.isArray(p) && p.length && 'id' in p[0]) return p;
+    } catch {}
+  }
+  const idx = text.lastIndexOf('[{"id"');
+  if (idx !== -1) try { return JSON.parse(text.slice(idx)); } catch {}
+  return [];
+}
+
+function safeParse(val) {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    try {
+      const p = JSON.parse(val);
+      if (Array.isArray(p)) return p;
+      if (typeof p === 'object') {
+        const steps = [];
+        for (const rk of ['round1','round2','round3'])
+          for (const sk of ['step1','step2','step3','step4','step5','step6','step7','step8','step9'])
+            if (p[rk]?.[sk]) steps.push(p[rk][sk]);
+        return steps;
+      }
+    } catch {}
+  }
+  return [];
+}
+
+function badge(acc) {
+  const cls = acc >= 80 ? 'green' : acc >= 60 ? 'yellow' : 'red';
+  return `<span class="badge ${cls}">${acc}%</span>`;
+}
+
+function rBadge(r) {
+  const col = r === 'S' ? '#4ade80' : r === 'MISSING' ? '#f87171' : '#facc15';
+  return `<span class="badge" style="background:${col};color:#000">${r}</span>`;
+}
+
+// ── Process file ─────────────────────────────────────────────
+function processData(lines) {
+  const raw = lines.filter(l => l.trim()).map(l => JSON.parse(l));
+
+  // Validate columns
+  const first = raw[0];
+  if (!('gold_output' in first) || !('prediction_output' in first)) {
+    showError(`Missing required columns. Found: ${Object.keys(first).join(', ')}`);
+    return;
+  }
+
+  const stepCorrect = {}, stepTotal = {}, stepWrong = {}, stepRight = {};
+  const valid = [], parseErrors = [];
+
+  raw.forEach((r, idx) => {
+    const cid   = String(idx + 1);
+    const gold  = safeParse(r.gold_output);
+    const pred  = extractJsonArray(r.prediction_output);
+
+    if (!gold.length || !pred.length) { parseErrors.push(cid); return; }
+
+    const predMap = {};
+    pred.forEach(s => predMap[s.id] = s);
+
+    let correct = 0;
+    const wrongIds = [];
+    gold.forEach(gs => {
+      const ps = predMap[gs.id];
+      if (ps && ps.r === gs.r) correct++;
+      else wrongIds.push(gs.id);
+    });
+
+    const acc = correct / gold.length;
+    if (acc === 0) { parseErrors.push(cid); return; }
+
+    valid.push({ cid, acc, wrongIds, gold, predMap, raw: r });
+
+    gold.forEach(gs => {
+      const sid = gs.id;
+      stepTotal[sid] = (stepTotal[sid] || 0) + 1;
+      const ps = predMap[sid];
+      const ok = ps && ps.r === gs.r;
+      if (ok) stepCorrect[sid] = (stepCorrect[sid] || 0) + 1;
+      const entry = {
+        cid,
+        gold_r: gs.r, pred_r: ps ? ps.r : 'MISSING',
+        gold_e: (gs.e || '').slice(0,300), gold_g: gs.g || '',
+        pred_e: ps ? (ps.e||'').slice(0,300) : '', pred_g: ps ? (ps.g||'') : '',
+      };
+      if (ok) { if (!stepRight[sid]) stepRight[sid] = []; stepRight[sid].push(entry); }
+      else    { if (!stepWrong[sid]) stepWrong[sid] = []; stepWrong[sid].push(entry); }
+    });
+  });
+
+  const steps   = Object.keys(stepTotal).map(Number).sort((a,b)=>a-b);
+  const stepAcc = {};
+  steps.forEach(s => stepAcc[s] = Math.round(100*(stepCorrect[s]||0)/stepTotal[s]*10)/10);
+  const meanAcc = valid.length ? Math.round(valid.reduce((a,r)=>a+r.acc,0)/valid.length*1000)/10 : 0;
+  const perfect = valid.filter(r=>r.acc===1).length;
+
+  renderDashboard({ raw, valid, parseErrors, steps, stepAcc, stepCorrect, stepTotal, stepWrong, meanAcc, perfect });
+  allRaw = raw;
+  currentRec = 0;
+  setTimeout(() => { showRaw(0); }, 300);
+}
+
+// ── Render ───────────────────────────────────────────────────
+let charts = {};
+
+function renderDashboard(d) {
+  document.getElementById('dashboard').classList.remove('hidden');
+
+  // Cards
+  document.getElementById('cards').innerHTML = `
+    <div class="card blue"><div class="val">${d.meanAcc}%</div><div class="lbl">Mean Acc</div></div>
+    <div class="card green"><div class="val">${d.perfect}</div><div class="lbl">Perfect</div></div>
+    <div class="card yellow"><div class="val">${d.valid.length}</div><div class="lbl">Valid</div></div>
+    <div class="card red"><div class="val">${d.parseErrors.length}</div><div class="lbl">Skipped</div></div>
+    <div class="card gray"><div class="val">${d.raw.length}</div><div class="lbl">Total</div></div>
+  `;
+
+  const labels   = d.steps.map(s=>`Step ${s}`);
+  const accs     = d.steps.map(s=>d.stepAcc[s]);
+  const corrects = d.steps.map(s=>d.stepCorrect[s]||0);
+  const wrongs   = d.steps.map(s=>(d.stepTotal[s]||0)-(d.stepCorrect[s]||0));
+  const barColors= accs.map(a=>a>=80?'#4ade80':a>=60?'#facc15':'#f87171');
+
+  // Destroy old charts
+  Object.values(charts).forEach(c=>c.destroy());
+
+  // Accuracy bar
+  charts.acc = new Chart(document.getElementById('accChart'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: accs, backgroundColor: barColors, borderRadius: 4 }] },
+    options: {
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c=>`${c.raw}%` } } },
+      scales: {
+        x: { ticks: { color:'#94a3b8' }, grid: { color:'#1e293b' } },
+        y: { max: 110, ticks: { color:'#94a3b8', callback: v=>`${v}%` }, grid: { color:'#334155' } }
+      }
+    }
+  });
+
+  // Stacked correct/wrong
+  charts.stack = new Chart(document.getElementById('stackChart'), {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label:'Correct', data: corrects, backgroundColor:'#4ade80', borderRadius: 2 },
+      { label:'Wrong',   data: wrongs,   backgroundColor:'#f87171', borderRadius: 2 },
+    ]},
+    options: {
+      plugins: { legend: { labels: { color:'#94a3b8' } } },
+      scales: {
+        x: { stacked:true, ticks:{color:'#94a3b8'}, grid:{color:'#1e293b'} },
+        y: { stacked:true, ticks:{color:'#94a3b8'}, grid:{color:'#334155'} }
+      }
+    }
+  });
+
+  // Per-record
+  const recAccs   = d.valid.map(r=>Math.round(r.acc*1000)/10);
+  const recLabels = d.valid.map(r=>`#${r.cid}`);
+  const recColors = recAccs.map(a=>a===100?'#4ade80':a>=70?'#facc15':'#f87171');
+  charts.rec = new Chart(document.getElementById('recChart'), {
+    type: 'bar',
+    data: { labels: recLabels, datasets: [{ data: recAccs, backgroundColor: recColors, borderRadius: 2 }] },
+    options: {
+      plugins: { legend: { display:false } },
+      scales: {
+        x: { ticks:{color:'#94a3b8',font:{size:9}}, grid:{color:'#1e293b'} },
+        y: { max:110, ticks:{color:'#94a3b8',callback:v=>`${v}%`}, grid:{color:'#334155'} }
+      }
+    }
+  });
+
+  // Step table
+  document.getElementById('stepTable').innerHTML = d.steps.map(s => {
+    const acc = d.stepAcc[s];
+    const cor = d.stepCorrect[s]||0;
+    const tot = d.stepTotal[s]||0;
+    return `<tr>
+      <td>Step ${s}</td>
+      <td style="color:#4ade80">${cor}</td>
+      <td style="color:#f87171">${tot-cor}</td>
+      <td style="color:#94a3b8">${tot}</td>
+      <td>${badge(acc)}</td>
+    </tr>`;
+  }).join('');
+
+  // Wrong cases browser
+  const stepsWithWrong = d.steps.filter(s=>d.stepWrong[s]?.length);
+  let activeStep = stepsWithWrong[0] || null;
+
+  function renderFilter() {
+    document.getElementById('stepFilter').innerHTML = stepsWithWrong.map(s=>`
+      <button class="step-btn ${s===activeStep?'active':''}" onclick="setStep(${s})">
+        Step ${s} (${d.stepWrong[s].length})
+      </button>
+    `).join('');
+  }
+
+  window.setStep = function(s) {
+    activeStep = s;
+    renderFilter();
+    renderWrong();
+  };
+
+  function renderWrong() {
+    if (!activeStep) {
+      document.getElementById('wrongCases').innerHTML = '<p style="color:#64748b;font-size:0.85em">No wrong cases.</p>';
+      return;
+    }
+    const cases = d.stepWrong[activeStep] || [];
+    document.getElementById('wrongCases').innerHTML = cases.map((c,i)=>`
+      <div class="case-card">
+        <div class="case-header">
+          <span class="case-id">Record #${c.cid}</span>
+          <span style="font-size:0.8em;color:#64748b">Case ${i+1}/${cases.length}</span>
+        </div>
+        <div class="case-grid">
+          <div class="case-col gold-col">
+            <div class="case-col-title">🏆 GOLD ${rBadge(c.gold_r)}</div>
+            <div class="case-text">${c.gold_e || '—'}</div>
+            ${c.gold_g ? `<div class="case-text" style="margin-top:6px;color:#475569">${c.gold_g}</div>` : ''}
+          </div>
+          <div class="case-col pred-col">
+            <div class="case-col-title">🤖 PRED ${rBadge(c.pred_r)}</div>
+            <div class="case-text">${c.pred_e || '—'}</div>
+            ${c.pred_g ? `<div class="case-text" style="margin-top:6px;color:#475569">${c.pred_g}</div>` : ''}
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  renderFilter();
+  renderWrong();
+}
+
+// ── File handling ─────────────────────────────────────────────
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = `❌ ${msg}`;
+  el.style.display = 'block';
+}
+
+function handleFile(file) {
+  document.getElementById('errorMsg').style.display = 'none';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const lines = e.target.result.split('\n');
+      processData(lines);
+    } catch(err) {
+      showError(`Parse error: ${err.message}`);
+    }
+  };
+  reader.readAsText(file);
+}
+
+document.getElementById('fileInput').addEventListener('change', e => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+dz.addEventListener('click', () => document.getElementById('fileInput').click());
+
+// ── Raw Record Browser ────────────────────────────────────────
+let allRaw = [];
+let currentRec = 0;
+
+function showRaw(idx) {
+  if (!allRaw.length) return;
+  if (idx === undefined) {
+    idx = parseInt(document.getElementById('recInput').value) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= allRaw.length) idx = 0;
+  }
+  currentRec = idx;
+  document.getElementById('recInput').value = idx + 1;
+  document.getElementById('recNav').textContent = `${idx+1} / ${allRaw.length}`;
+
+  const r = allRaw[idx];
+  const keys = Object.keys(r);
+
+  // Separate thinking/output columns from other metadata
+  const thinkOutputKeys = keys.filter(k => k.toLowerCase().includes('thinking') || k.toLowerCase().includes('output'));
+  const metaKeys = keys.filter(k => !thinkOutputKeys.includes(k));
+
+  function renderVal(val, isJson) {
+    if (typeof val === 'string' && (val.trim().startsWith('[') || val.trim().startsWith('{'))) {
+      try {
+        const parsed = JSON.parse(val);
+        return `<pre style="white-space:pre-wrap;word-break:break-all;color:#4ade80;font-size:0.82em;margin:0;font-family:Calibri,Arial,sans-serif">${JSON.stringify(parsed, null, 2)}</pre>`;
+      } catch {}
+    }
+    if (Array.isArray(val)) {
+      return `<pre style="white-space:pre-wrap;word-break:break-all;color:#4ade80;font-size:0.82em;margin:0;font-family:Calibri,Arial,sans-serif">${JSON.stringify(val, null, 2)}</pre>`;
+    }
+    return `<div style="color:#e2e8f0;font-size:0.84em;white-space:pre-wrap;word-break:break-all;line-height:1.6;font-family:Calibri,Arial,sans-serif">${escapeHtml(String(val ?? ''))}</div>`;
+  }
+
+  // Separate input/system_prompt from tiny meta
+  const bigTextKeys  = metaKeys.filter(k => ['input','system_prompt','system prompt'].includes(k.toLowerCase()));
+  const smallMetaKeys = metaKeys.filter(k => !['input','system_prompt','system prompt'].includes(k.toLowerCase()));
+
+  // Small chips for IDs/sources etc
+  const metaHtml = smallMetaKeys.map(k => `
+    <div style="display:inline-flex;flex-direction:column;margin-right:16px;margin-bottom:8px;vertical-align:top">
+      <span style="color:#475569;font-size:0.72em;text-transform:uppercase;letter-spacing:0.05em">${escapeHtml(k)}</span>
+      <span style="color:#e2e8f0;font-size:0.82em">${escapeHtml(String(r[k] ?? '').slice(0,120))}</span>
+    </div>`).join('');
+
+  // Big text blocks for input/system_prompt — collapsible
+  const bigTextHtml = bigTextKeys.map(k => {
+    const val = escapeHtml(String(r[k] ?? ''));
+    const id  = 'collapse_' + k + '_' + idx;
+    return `
+      <div style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <span style="color:#64748b;font-size:0.75em;text-transform:uppercase;letter-spacing:0.05em;font-weight:bold">${escapeHtml(k)}</span>
+          <button onclick="toggleCollapse('${id}')" style="background:#334155;border:none;color:#94a3b8;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:0.72em;font-family:Calibri,Arial,sans-serif">toggle</button>
+        </div>
+        <div id="${id}" style="background:#0f172a;padding:10px;border-radius:8px;max-height:120px;overflow-y:auto;display:block">
+          <div style="color:#e2e8f0;font-size:0.84em;white-space:pre-wrap;word-break:break-all;line-height:1.6;font-family:Calibri,Arial,sans-serif">${val}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Left/right columns for thinking and output
+  const colCount = thinkOutputKeys.length;
+  const colWidth = colCount > 0 ? Math.floor(100/colCount) : 100;
+
+  const colHtml = thinkOutputKeys.map(k => {
+    const colColor = k.toLowerCase().includes('gold') ? '#38bdf8' : '#c084fc';
+    return `
+      <div style="flex:1;min-width:0;padding:0 8px">
+        <div style="color:${colColor};font-size:0.75em;font-weight:bold;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid ${colColor}">${escapeHtml(k)}</div>
+        <div style="background:#0f172a;padding:12px;border-radius:8px;max-height:500px;overflow-y:auto">
+          ${renderVal(r[k])}
+        </div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('rawRecord').innerHTML = `
+    <div style="background:#0f172a;border-radius:10px;padding:16px;font-family:Calibri,Arial,sans-serif">
+      <div style="color:#64748b;font-size:0.78em;margin-bottom:12px">${keys.length} columns · Record ${idx+1} of ${allRaw.length}</div>
+
+      <!-- Meta chips -->
+      ${smallMetaKeys.length ? `<div style="background:#1e293b;padding:12px;border-radius:8px;margin-bottom:10px">${metaHtml}</div>` : ''}
+
+      <!-- Input / System Prompt -->
+      ${bigTextKeys.length ? `<div style="background:#1e293b;padding:12px;border-radius:8px;margin-bottom:14px">${bigTextHtml}</div>` : ''}
+
+      <!-- Side by side thinking + output -->
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        ${colHtml || '<div style="color:#64748b">No thinking/output columns found</div>'}
+      </div>
+    </div>`;
+}
+
+function prevRec() { if (currentRec > 0) showRaw(currentRec - 1); }
+function nextRec() { if (currentRec < allRaw.length - 1) showRaw(currentRec + 1); }
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Hook into processData to store raw records
+const _origProcess = processData;
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft')  prevRec();
+  if (e.key === 'ArrowRight') nextRec();
+});
+
+</script>
+</body>
+</html>
