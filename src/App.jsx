@@ -1,6 +1,57 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Chart from 'chart.js/auto';
 
+function Dragon() {
+  return (
+    <svg className="dragon" viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="dragonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#fbbf24" stopOpacity="1" />
+          <stop offset="50%" stopColor="#f59e0b" stopOpacity="1" />
+          <stop offset="100%" stopColor="#d97706" stopOpacity="1" />
+        </linearGradient>
+        <filter id="dragonGlow">
+          <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      
+      {/* Tail */}
+      <path d="M 10 50 Q 20 40 30 50 T 50 50" stroke="url(#dragonGrad)" strokeWidth="8" fill="none" strokeLinecap="round" filter="url(#dragonGlow)"/>
+      
+      {/* Body */}
+      <ellipse cx="70" cy="50" rx="30" ry="20" fill="url(#dragonGrad)" filter="url(#dragonGlow)"/>
+      
+      {/* Head */}
+      <circle cx="110" cy="50" r="18" fill="url(#dragonGrad)" filter="url(#dragonGlow)"/>
+      
+      {/* Horns */}
+      <line x1="105" y1="25" x2="100" y2="10" stroke="url(#dragonGrad)" strokeWidth="4" strokeLinecap="round"/>
+      <line x1="115" y1="25" x2="120" y2="10" stroke="url(#dragonGrad)" strokeWidth="4" strokeLinecap="round"/>
+      
+      {/* Eyes */}
+      <circle cx="106" cy="45" r="3" fill="#000"/>
+      <circle cx="114" cy="45" r="3" fill="#000"/>
+      <circle cx="107" cy="44" r="1.5" fill="#fff"/>
+      <circle cx="115" cy="44" r="1.5" fill="#fff"/>
+      
+      {/* Mouth */}
+      <path d="M 118 52 Q 125 55 130 52" stroke="#000" strokeWidth="2" fill="none" strokeLinecap="round"/>
+      
+      {/* Wings */}
+      <path d="M 80 40 Q 85 20 100 30" stroke="url(#dragonGrad)" strokeWidth="3" fill="none" opacity="0.7" strokeLinecap="round"/>
+      <path d="M 80 60 Q 85 80 100 70" stroke="url(#dragonGrad)" strokeWidth="3" fill="none" opacity="0.7" strokeLinecap="round"/>
+      
+      {/* Claws */}
+      <circle cx="60" cy="68" r="3" fill="url(#dragonGrad)"/>
+      <circle cx="70" cy="70" r="3" fill="url(#dragonGrad)"/>
+    </svg>
+  );
+}
+
 function extractJsonArray(input) {
   if (!input || input === 'None') return [];
   let text = String(input)
@@ -441,6 +492,7 @@ export default function App() {
 
   return (
     <>
+      <Dragon />
       <h1>QC AI Result Dashboard</h1>
       <p className="subtitle">Drag & drop a .jsonl result file - supports gold_output / prediction_output format</p>
 
