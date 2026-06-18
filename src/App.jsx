@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Chart from 'chart.js/auto';
 
+<<<<<<< HEAD
 function Dragon() {
   const canvasRef = useRef(null);
   const [isMuted, setIsMuted] = useState(true);
@@ -146,6 +147,7 @@ function Dragon() {
     gongPulse: 0,
     beatCounter: 0,
     beatNum: 0,
+    fightTimer: 0,
   });
 
   useEffect(() => {
@@ -156,6 +158,12 @@ function Dragon() {
     let animationFrameId;
     let time = 0;
     const state = dragonState.current;
+    
+    const euroImg = new Image();
+    euroImg.src = '/european_dragon.png';
+    
+    const asianImg = new Image();
+    asianImg.src = '/asian_dragon.png';
     
     const resize = () => {
       canvas.width = window.innerWidth;
@@ -184,6 +192,19 @@ function Dragon() {
       state.mouseLastActive = Date.now();
     };
     window.addEventListener('mousedown', handleMouseDown);
+    
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      const key = e.key.toLowerCase();
+      if (key === 'a') {
+        state.azure.fireTimer = 150;
+      } else if (key === 'b') {
+        state.gold.fireTimer = 150;
+      } else if (key === 'h') {
+        state.fightTimer = 600; // 10 seconds at 60fps
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
     
     const drawDrum = (c, w, h, pulse) => {
       const cx = 95;
@@ -420,7 +441,11 @@ function Dragon() {
         let tx = drag.targetX;
         let ty = drag.targetY;
         
-        if (state.celebrateTimer > 0) {
+        if (state.fightTimer > 0) {
+          tx = other.x;
+          ty = other.y;
+          if (Math.random() < 0.05) drag.fireTimer = Math.max(drag.fireTimer, 10);
+        } else if (state.celebrateTimer > 0) {
           const cx = width / 2;
           const cy = height / 2;
           const phaseOffset = drag.theme === 'gold' ? 0 : Math.PI;
@@ -451,10 +476,10 @@ function Dragon() {
         let diff = targetAngle - drag.angle;
         diff = Math.atan2(Math.sin(diff), Math.cos(diff));
         
-        let turnRate = state.celebrateTimer > 0 ? 0.12 : isClashing ? 0.085 : state.mouseActive ? 0.065 : 0.035;
+        let turnRate = state.fightTimer > 0 ? 0.18 : state.celebrateTimer > 0 ? 0.12 : isClashing ? 0.085 : state.mouseActive ? 0.065 : 0.035;
         drag.angle += diff * turnRate;
         
-        let baseSpeed = state.celebrateTimer > 0 ? 6.5 : isClashing ? 4.8 : state.mouseActive ? 4.2 : 2.5;
+        let baseSpeed = state.fightTimer > 0 ? 9.5 : state.celebrateTimer > 0 ? 6.5 : isClashing ? 4.8 : state.mouseActive ? 4.2 : 2.5;
         let speed = dist < 60 && state.mouseActive ? dist * 0.08 : baseSpeed;
         
         drag.x += Math.cos(drag.angle) * speed;
@@ -465,21 +490,6 @@ function Dragon() {
         if (drag.y < -100) drag.y = height + 100;
         if (drag.y > height + 100) drag.y = -100;
         
-        const spacing = 14;
-        for (let i = 0; i < drag.segments.length; i++) {
-          const parent = i === 0 ? { x: drag.x, y: drag.y, angle: drag.angle } : drag.segments[i - 1];
-          const seg = drag.segments[i];
-          const sdx = parent.x - seg.x;
-          const sdy = parent.y - seg.y;
-          const sdist = Math.hypot(sdx, sdy);
-          
-          if (sdist > spacing) {
-            const sangle = Math.atan2(sdy, sdx);
-            seg.x = parent.x - Math.cos(sangle) * spacing;
-            seg.y = parent.y - Math.sin(sangle) * spacing;
-            seg.angle = sangle;
-          }
-        }
       };
       
       updateDragon(state.gold, state.azure);
@@ -495,6 +505,10 @@ function Dragon() {
         state.azure.targetY = Math.random() * height;
       }
       
+      if (state.fightTimer > 0) {
+        state.fightTimer--;
+      }
+      
       if (state.celebrateTimer > 0) {
         state.celebratePhase += 0.065;
         state.celebrateTimer--;
@@ -502,12 +516,13 @@ function Dragon() {
       
       const spawnEmbers = (drag, mainColor, secondColor) => {
         if (time % 2 === 0) {
-          const tail = drag.segments[drag.segments.length - 1];
+          const tailX = drag.x - Math.cos(drag.angle) * 120;
+          const tailY = drag.y - Math.sin(drag.angle) * 120;
           state.particles.push({
-            x: tail.x,
-            y: tail.y,
-            vx: (Math.random() - 0.5) * 1 - Math.cos(tail.angle) * 1.5,
-            vy: (Math.random() - 0.5) * 1 - Math.sin(tail.angle) * 1.5,
+            x: tailX,
+            y: tailY,
+            vx: (Math.random() - 0.5) * 1 - Math.cos(drag.angle) * 1.5,
+            vy: (Math.random() - 0.5) * 1 - Math.sin(drag.angle) * 1.5,
             size: 2 + Math.random() * 3,
             color: mainColor,
             life: 30 + Math.random() * 20,
@@ -515,10 +530,12 @@ function Dragon() {
           });
           
           if (Math.random() > 0.4) {
-            const randomSeg = drag.segments[Math.floor(Math.random() * drag.segments.length)];
+            const randomOffset = Math.random() * 100;
+            const rX = drag.x - Math.cos(drag.angle) * randomOffset;
+            const rY = drag.y - Math.sin(drag.angle) * randomOffset;
             state.particles.push({
-              x: randomSeg.x,
-              y: randomSeg.y,
+              x: rX,
+              y: rY,
               vx: (Math.random() - 0.5) * 0.5,
               vy: (Math.random() - 0.5) * 0.5 - 0.2,
               size: 1.5 + Math.random() * 2,
@@ -537,18 +554,23 @@ function Dragon() {
         const mouthX = drag.x + Math.cos(drag.angle) * 22;
         const mouthY = drag.y + Math.sin(drag.angle) * 22;
         
-        for (let j = 0; j < 4; j++) {
-          const fangle = drag.angle + (Math.random() - 0.5) * 0.45;
-          const fspeed = 4.5 + Math.random() * 6;
+        const isMegaFire = drag.fireTimer > 45;
+        const multiplier = isMegaFire ? 3 : 1;
+        const spread = isMegaFire ? 1.2 : 0.45;
+        const count = isMegaFire ? 12 : 4;
+        
+        for (let j = 0; j < count; j++) {
+          const fangle = drag.angle + (Math.random() - 0.5) * spread;
+          const fspeed = (4.5 + Math.random() * 6) * multiplier;
           state.particles.push({
             x: mouthX,
             y: mouthY,
-            vx: Math.cos(fangle) * fspeed + (Math.random() - 0.5) * 1,
-            vy: Math.sin(fangle) * fspeed + (Math.random() - 0.5) * 1,
-            size: 3 + Math.random() * 7,
+            vx: Math.cos(fangle) * fspeed + (Math.random() - 0.5) * 2,
+            vy: Math.sin(fangle) * fspeed + (Math.random() - 0.5) * 2,
+            size: (3 + Math.random() * 7) * (isMegaFire ? 2.5 : 1),
             color: colorScale[Math.floor(Math.random() * colorScale.length)],
-            life: 25 + Math.random() * 18,
-            maxLife: 43,
+            life: (25 + Math.random() * 18) * (isMegaFire ? 1.5 : 1),
+            maxLife: 43 * (isMegaFire ? 1.5 : 1),
           });
         }
       };
@@ -635,177 +657,26 @@ function Dragon() {
       
       const wingFlap = Math.sin(time * 0.11) * 0.5;
       
-      const drawDragonEntity = (drag, colors) => {
-        for (let i = drag.segments.length - 1; i >= 0; i--) {
-          const seg = drag.segments[i];
-          const r = i === 0 ? 13 : Math.max(5.5, 14.5 - i * 0.72);
-          
-          ctx.save();
-          
-          const grad = ctx.createRadialGradient(seg.x, seg.y, 2, seg.x, seg.y, r);
-          grad.addColorStop(0, colors.bodyInner);
-          grad.addColorStop(0.5, colors.bodyMid);
-          grad.addColorStop(1, colors.bodyOuter);
-          ctx.fillStyle = grad;
-          ctx.beginPath();
-          ctx.arc(seg.x, seg.y, r, 0, Math.PI * 2);
-          ctx.fill();
-          
-          const nx = -Math.sin(seg.angle);
-          const ny = Math.cos(seg.angle);
-          ctx.strokeStyle = colors.spine;
-          ctx.lineWidth = 2.5;
-          ctx.shadowColor = colors.spine;
-          ctx.shadowBlur = 8;
-          ctx.beginPath();
-          ctx.moveTo(seg.x, seg.y);
-          ctx.lineTo(seg.x + nx * (r + 7), seg.y + ny * (r + 7));
-          ctx.stroke();
-          ctx.shadowBlur = 0;
-          
-          ctx.restore();
-          
-          if (i === 1) {
-            ctx.save();
-            ctx.translate(seg.x, seg.y);
-            ctx.rotate(seg.angle);
-            
-            ctx.save();
-            ctx.scale(1, -1);
-            drawWing(ctx, wingFlap, colors.wing1, colors.wing2, colors.wing3);
-            ctx.restore();
-            
-            ctx.save();
-            drawWing(ctx, wingFlap, colors.wing1, colors.wing2, colors.wing3);
-            ctx.restore();
-            
-            ctx.restore();
-          }
-        }
-        
-        const tail = drag.segments[drag.segments.length - 1];
-        ctx.save();
-        ctx.translate(tail.x, tail.y);
-        ctx.rotate(tail.angle);
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        const tailSway = Math.sin(time * 0.12) * 8;
-        ctx.quadraticCurveTo(-15, -15 + tailSway, -28, -5 + tailSway);
-        ctx.quadraticCurveTo(-18, 0, -28, 5 + tailSway);
-        ctx.quadraticCurveTo(-15, 15 + tailSway, 0, 0);
-        const tailGrad = ctx.createLinearGradient(0, 0, -28, 0);
-        tailGrad.addColorStop(0, colors.bodyMid);
-        tailGrad.addColorStop(1, colors.spine);
-        ctx.fillStyle = tailGrad;
-        ctx.fill();
-        ctx.restore();
-        
+      const drawDragonEntity = (drag, img) => {
         ctx.save();
         ctx.translate(drag.x, drag.y);
         ctx.rotate(drag.angle);
         
-        const snoutGrad = ctx.createLinearGradient(-10, -10, 22, 10);
-        snoutGrad.addColorStop(0, colors.bodyInner);
-        snoutGrad.addColorStop(0.5, colors.bodyMid);
-        snoutGrad.addColorStop(1, colors.headSnout);
-        ctx.fillStyle = snoutGrad;
-        ctx.beginPath();
-        ctx.moveTo(10, -10);
-        ctx.lineTo(24, -5);
-        ctx.lineTo(24, 5);
-        ctx.lineTo(10, 10);
-        ctx.quadraticCurveTo(-12, 14, -12, -14);
-        ctx.closePath();
-        ctx.fill();
+        ctx.globalCompositeOperation = 'screen';
         
-        ctx.strokeStyle = colors.bodyInner;
-        ctx.lineWidth = 3.5;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(-4, -7);
-        ctx.quadraticCurveTo(-16, -20, -28, -17);
-        ctx.moveTo(-4, 7);
-        ctx.quadraticCurveTo(-16, 20, -28, 17);
-        ctx.stroke();
-        
-        ctx.fillStyle = colors.eyeGlow;
-        ctx.shadowColor = colors.eyeGlow;
-        ctx.shadowBlur = 10;
-        ctx.beginPath();
-        ctx.arc(8, -5, 3.5, 0, Math.PI * 2);
-        ctx.arc(8, 5, 3.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        
-        ctx.strokeStyle = colors.whisker;
-        ctx.lineWidth = 1.5;
-        const wSway1 = Math.sin(time * 0.08) * 3;
-        const wSway2 = Math.sin(time * 0.08 + Math.PI) * 3;
-        ctx.beginPath();
-        ctx.moveTo(18, -4);
-        ctx.quadraticCurveTo(8, -14 + wSway1, -22, -10 + wSway1);
-        ctx.moveTo(18, 4);
-        ctx.quadraticCurveTo(8, 14 + wSway2, -22, 10 + wSway2);
-        ctx.stroke();
+        if (img.complete) {
+          const size = 300;
+          ctx.drawImage(img, -size/2 + 20, -size/2, size, size);
+        }
         
         ctx.restore();
       };
       
-      const drawWing = (c, flap, w1, w2, w3) => {
-        c.beginPath();
-        c.moveTo(0, 0);
-        const wingLen = 42;
-        const flapOffset = flap * 14;
-        c.quadraticCurveTo(12, 15 - flapOffset, wingLen, 25 - flapOffset);
-        c.quadraticCurveTo(18, 30 - flapOffset, 0, 0);
-        const wgrad = c.createLinearGradient(0, 0, wingLen, 25);
-        wgrad.addColorStop(0, w1);
-        wgrad.addColorStop(0.6, w2);
-        wgrad.addColorStop(1, w3);
-        c.fillStyle = wgrad;
-        c.fill();
-        
-        c.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-        c.lineWidth = 1;
-        c.beginPath();
-        c.moveTo(0, 0);
-        c.lineTo(wingLen, 25 - flapOffset);
-        c.moveTo(0, 0);
-        c.lineTo(wingLen - 8, 16 - flapOffset);
-        c.stroke();
-      };
+      // Draw Azure Dragon (European)
+      drawDragonEntity(state.azure, euroImg);
       
-      const goldColors = {
-        bodyInner: '#fde047',
-        bodyMid: '#ea580c',
-        bodyOuter: '#7c2d12',
-        spine: '#06b6d4',
-        headSnout: '#b91c1c',
-        eyeGlow: '#22d3ee',
-        whisker: '#f59e0b',
-        wing1: '#fde047',
-        wing2: '#ea580c',
-        wing3: '#a855f7',
-      };
-      
-      const azureColors = {
-        bodyInner: '#22d3ee',
-        bodyMid: '#2563eb',
-        bodyOuter: '#1e3a8a',
-        spine: '#d946ef',
-        headSnout: '#6d28d9',
-        eyeGlow: '#fbbf24',
-        whisker: '#38bdf8',
-        wing1: '#22d3ee',
-        wing2: '#2563eb',
-        wing3: '#f43f5e',
-      };
-      
-      // Draw Azure Dragon
-      drawDragonEntity(state.azure, azureColors);
-      
-      // Draw Gold Dragon
-      drawDragonEntity(state.gold, goldColors);
+      // Draw Gold Dragon (Asian)
+      drawDragonEntity(state.gold, asianImg);
       
       // Draw Data Pearl in center when celebrating
       if (state.celebrateTimer > 0) {
@@ -843,6 +714,7 @@ function Dragon() {
       window.removeEventListener('resize', resize);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('qc-file-uploaded', handleCelebration);
       cancelAnimationFrame(animationFrameId);
     };
@@ -871,6 +743,8 @@ function Dragon() {
   );
 }
 
+=======
+>>>>>>> parent of aa0c315 (xin chào)
 function extractJsonArray(input) {
   if (!input || input === 'None') return [];
   let text = String(input)
@@ -1313,7 +1187,6 @@ export default function App() {
 
   return (
     <>
-      <Dragon />
       <h1>QC AI Result Dashboard</h1>
       <p className="subtitle">Drag & drop a .jsonl result file - supports gold_output / prediction_output format</p>
 
