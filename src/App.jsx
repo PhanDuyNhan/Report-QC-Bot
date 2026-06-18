@@ -3,18 +3,138 @@ import Chart from 'chart.js/auto';
 
 function Dragon() {
   const canvasRef = useRef(null);
+  const [isMuted, setIsMuted] = useState(true);
+  const audioCtxRef = useRef(null);
+
+  const playDrum = (ctx, time) => {
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+      
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(180, time);
+      
+      osc.frequency.setValueAtTime(150, time);
+      osc.frequency.exponentialRampToValueAtTime(45, time + 0.12);
+      
+      gain.gain.setValueAtTime(0.85, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+      
+      osc.start(time);
+      osc.stop(time + 0.22);
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  const playGong = (ctx, time) => {
+    try {
+      const freqs = [140, 215, 310, 440];
+      const gain = ctx.createGain();
+      gain.connect(ctx.destination);
+      gain.gain.setValueAtTime(0.4, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 1.8);
+      
+      freqs.forEach((f, idx) => {
+        const osc = ctx.createOscillator();
+        osc.type = idx === 0 ? 'sine' : 'triangle';
+        osc.frequency.setValueAtTime(f, time);
+        osc.frequency.linearRampToValueAtTime(f * 0.96, time + 0.3);
+        
+        const oscGain = ctx.createGain();
+        oscGain.gain.setValueAtTime(idx === 0 ? 0.8 : 0.45, time);
+        
+        osc.connect(oscGain);
+        oscGain.connect(gain);
+        
+        osc.start(time);
+        osc.stop(time + 2.0);
+      });
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  const playSuona = (ctx, freq, time, duration = 0.18) => {
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+      
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, time);
+      
+      const vibrato = ctx.createOscillator();
+      const vibratoGain = ctx.createGain();
+      vibrato.frequency.setValueAtTime(13.5, time);
+      vibratoGain.gain.setValueAtTime(freq * 0.035, time);
+      
+      vibrato.connect(vibratoGain);
+      vibratoGain.connect(osc.frequency);
+      
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(freq * 1.35, time);
+      filter.Q.setValueAtTime(1.4, time);
+      
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      
+      gain.gain.setValueAtTime(0.07, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+      
+      vibrato.start(time);
+      osc.start(time);
+      vibrato.stop(time + duration + 0.1);
+      osc.stop(time + duration + 0.1);
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  const toggleAudio = () => {
+    if (isMuted) {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume();
+      }
+      setIsMuted(false);
+    } else {
+      if (audioCtxRef.current) {
+        audioCtxRef.current.suspend();
+      }
+      setIsMuted(true);
+    }
+  };
+
   const dragonState = useRef({
-    x: window.innerWidth / 2,
-    y: window.innerHeight / 2,
-    angle: 0,
-    speed: 4,
-    targetX: Math.random() * window.innerWidth,
-    targetY: Math.random() * window.innerHeight,
-    segments: Array.from({ length: 12 }, (_, i) => ({
-      x: window.innerWidth / 2 - i * 15,
+    gold: {
+      x: window.innerWidth / 3,
       y: window.innerHeight / 2,
       angle: 0,
-    })),
+      targetX: Math.random() * window.innerWidth,
+      targetY: Math.random() * window.innerHeight,
+      segments: Array.from({ length: 13 }, (_, i) => ({ x: window.innerWidth / 3 - i * 15, y: window.innerHeight / 2, angle: 0 })),
+      fireTimer: 0,
+      theme: 'gold',
+    },
+    azure: {
+      x: (window.innerWidth / 3) * 2,
+      y: window.innerHeight / 2,
+      angle: Math.PI,
+      targetX: Math.random() * window.innerWidth,
+      targetY: Math.random() * window.innerHeight,
+      segments: Array.from({ length: 13 }, (_, i) => ({ x: (window.innerWidth / 3) * 2 + i * 15, y: window.innerHeight / 2, angle: Math.PI })),
+      fireTimer: 0,
+      theme: 'azure',
+    },
     particles: [],
     mouseX: 0,
     mouseY: 0,
@@ -22,7 +142,10 @@ function Dragon() {
     mouseLastActive: 0,
     celebrateTimer: 0,
     celebratePhase: 0,
-    fireTimer: 0,
+    drumPulse: 0,
+    gongPulse: 0,
+    beatCounter: 0,
+    beatNum: 0,
   });
 
   useEffect(() => {
@@ -32,7 +155,6 @@ function Dragon() {
     
     let animationFrameId;
     let time = 0;
-    
     const state = dragonState.current;
     
     const resize = () => {
@@ -52,144 +174,430 @@ function Dragon() {
 
     const handleMouseDown = (e) => {
       if (e.target.closest('button, input, select, a, [role="button"], pre, code, table, tr, td')) return;
-      state.fireTimer = 45;
-      state.targetX = e.clientX;
-      state.targetY = e.clientY;
+      state.gold.fireTimer = 45;
+      state.azure.fireTimer = 45;
+      state.gold.targetX = e.clientX - 50;
+      state.gold.targetY = e.clientY;
+      state.azure.targetX = e.clientX + 50;
+      state.azure.targetY = e.clientY;
       state.mouseActive = true;
       state.mouseLastActive = Date.now();
     };
     window.addEventListener('mousedown', handleMouseDown);
     
+    const drawDrum = (c, w, h, pulse) => {
+      const cx = 95;
+      const cy = h - 90;
+      const baseR = 45;
+      const r = baseR + pulse * 7;
+      
+      c.save();
+      if (pulse > 0.01) {
+        c.strokeStyle = `rgba(239, 68, 68, ${pulse * 0.6})`;
+        c.lineWidth = 3;
+        c.beginPath();
+        c.arc(cx, cy, baseR + (1 - pulse) * 60, 0, Math.PI * 2);
+        c.stroke();
+      }
+      
+      c.fillStyle = '#b91c1c';
+      c.beginPath();
+      c.ellipse(cx, cy + 12, r, r * 0.85, 0, 0, Math.PI * 2);
+      c.fill();
+      c.strokeStyle = '#7f1d1d';
+      c.lineWidth = 2.5;
+      c.stroke();
+      
+      c.fillStyle = '#fef08a';
+      c.beginPath();
+      c.ellipse(cx, cy, r, r * 0.65, 0, 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+      
+      c.fillStyle = '#fbbf24';
+      for (let i = 0; i < 12; i++) {
+        const angle = (i * Math.PI * 2) / 12;
+        const sx = cx + Math.cos(angle) * r;
+        const sy = cy + Math.sin(angle) * r * 0.65;
+        c.beginPath();
+        c.arc(sx, sy, 3, 0, Math.PI * 2);
+        c.fill();
+      }
+      
+      c.strokeStyle = '#fde047';
+      c.lineWidth = 3.5;
+      c.lineCap = 'round';
+      
+      c.save();
+      c.translate(cx - 18, cy - 8);
+      const rotL = pulse > 0.7 ? 0.35 : -0.25;
+      c.rotate(rotL);
+      c.beginPath();
+      c.moveTo(0, -22);
+      c.lineTo(0, 5);
+      c.stroke();
+      c.fillStyle = '#b91c1c';
+      c.beginPath();
+      c.arc(0, -22, 4.5, 0, Math.PI * 2);
+      c.fill();
+      c.restore();
+      
+      c.save();
+      c.translate(cx + 18, cy - 8);
+      const rotR = pulse > 0.35 && pulse < 0.7 ? 0.35 : -0.25;
+      c.rotate(rotR);
+      c.beginPath();
+      c.moveTo(0, -22);
+      c.lineTo(0, 5);
+      c.stroke();
+      c.fillStyle = '#b91c1c';
+      c.beginPath();
+      c.arc(0, -22, 4.5, 0, Math.PI * 2);
+      c.fill();
+      c.restore();
+      
+      c.restore();
+    };
+
+    const drawGong = (c, w, h, pulse) => {
+      const cx = w - 95;
+      const cy = h - 90;
+      const r = 38 + pulse * 5;
+      
+      c.save();
+      if (pulse > 0.01) {
+        c.strokeStyle = `rgba(245, 158, 11, ${pulse * 0.6})`;
+        c.lineWidth = 3;
+        c.beginPath();
+        c.arc(cx, cy, 38 + (1 - pulse) * 60, 0, Math.PI * 2);
+        c.stroke();
+      }
+      
+      c.strokeStyle = '#451a03';
+      c.lineWidth = 7;
+      c.lineCap = 'square';
+      c.beginPath();
+      c.moveTo(cx - 48, cy + 45);
+      c.lineTo(cx - 48, cy - 45);
+      c.lineTo(cx + 48, cy - 45);
+      c.lineTo(cx + 48, cy + 45);
+      c.stroke();
+      
+      c.strokeStyle = '#ef4444';
+      c.lineWidth = 1.5;
+      c.beginPath();
+      c.moveTo(cx - 18, cy - 45);
+      c.lineTo(cx - 12, cy - r + 3);
+      c.moveTo(cx + 18, cy - 45);
+      c.lineTo(cx + 12, cy - r + 3);
+      c.stroke();
+      
+      const gongGrad = c.createRadialGradient(cx, cy, 2, cx, cy, r);
+      gongGrad.addColorStop(0, '#fef08a');
+      gongGrad.addColorStop(0.6, '#d97706');
+      gongGrad.addColorStop(1, '#451a03');
+      c.fillStyle = gongGrad;
+      c.beginPath();
+      c.arc(cx, cy, r, 0, Math.PI * 2);
+      c.fill();
+      c.strokeStyle = '#b45309';
+      c.lineWidth = 2;
+      c.stroke();
+      
+      c.strokeStyle = 'rgba(254, 240, 138, 0.35)';
+      c.lineWidth = 1.5;
+      c.beginPath();
+      c.arc(cx, cy, r * 0.5, 0, Math.PI * 2);
+      c.stroke();
+      
+      c.save();
+      c.translate(cx + 30, cy + 20);
+      const malRot = pulse > 0.7 ? -0.35 : 0.15;
+      c.rotate(malRot);
+      c.strokeStyle = '#b45309';
+      c.lineWidth = 3;
+      c.beginPath();
+      c.moveTo(0, 0);
+      c.lineTo(-35, -35);
+      c.stroke();
+      c.fillStyle = '#ef4444';
+      c.beginPath();
+      c.arc(-35, -35, 7, 0, Math.PI * 2);
+      c.fill();
+      c.restore();
+      
+      c.restore();
+    };
+
+    const drawPearl = (c, cx, cy, timer) => {
+      c.save();
+      const pulse = Math.sin(time * 0.1) * 5;
+      const r = 18 + pulse;
+      
+      c.shadowColor = '#fde047';
+      c.shadowBlur = 30 + pulse * 2;
+      
+      const pearlGrad = c.createRadialGradient(cx, cy, 2, cx, cy, r);
+      pearlGrad.addColorStop(0, '#ffffff');
+      pearlGrad.addColorStop(0.4, '#fef08a');
+      pearlGrad.addColorStop(1, '#eab308');
+      
+      c.fillStyle = pearlGrad;
+      c.beginPath();
+      c.arc(cx, cy, r, 0, Math.PI * 2);
+      c.fill();
+      
+      c.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+      c.lineWidth = 2;
+      c.beginPath();
+      c.arc(cx, cy, r + 5, 0, Math.PI * 2);
+      c.stroke();
+      c.restore();
+    };
+    
     const loop = () => {
       time += 1;
       const width = canvas.width;
       const height = canvas.height;
+      const currentAudioCtx = audioCtxRef.current;
+      const hasAudio = currentAudioCtx && currentAudioCtx.state === 'running';
+      
+      state.drumPulse = Math.max(0, state.drumPulse - 0.05);
+      state.gongPulse = Math.max(0, state.gongPulse - 0.04);
       
       if (state.mouseActive && Date.now() - state.mouseLastActive > 4000) {
         state.mouseActive = false;
       }
       
-      let tx = state.targetX;
-      let ty = state.targetY;
+      let beatCycle = state.celebrateTimer > 0 ? 10 : 33;
+      state.beatCounter++;
+      if (state.beatCounter >= beatCycle) {
+        state.beatCounter = 0;
+        state.beatNum = (state.beatNum + 1) % 16;
+        state.drumPulse = 1.0;
+        
+        if (hasAudio) {
+          const now = currentAudioCtx.currentTime;
+          if (state.celebrateTimer > 0) {
+            playDrum(currentAudioCtx, now);
+            if (time % 12 === 0) {
+              const fscale = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50];
+              const noteIdx = Math.floor((180 - state.celebrateTimer) / 11) % fscale.length;
+              playSuona(currentAudioCtx, fscale[noteIdx], now, 0.15);
+            }
+          } else {
+            if (state.beatNum === 0) {
+              state.gongPulse = 1.0;
+              playGong(currentAudioCtx, now);
+              playDrum(currentAudioCtx, now);
+            } else if (state.beatNum % 4 === 0) {
+              playDrum(currentAudioCtx, now);
+              if (Math.random() > 0.7) {
+                state.gongPulse = 1.0;
+                playGong(currentAudioCtx, now);
+              }
+            } else {
+              playDrum(currentAudioCtx, now);
+            }
+            
+            const scale = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50];
+            if (state.beatNum % 2 === 0 && Math.random() > 0.25) {
+              const freq = scale[Math.floor(Math.random() * scale.length)];
+              playSuona(currentAudioCtx, freq, now, 0.16);
+            }
+          }
+        } else {
+          if (state.beatNum === 0 || (state.beatNum % 4 === 0 && Math.random() > 0.7)) {
+            state.gongPulse = 1.0;
+          }
+        }
+      }
+      
+      const clashDist = Math.hypot(state.gold.x - state.azure.x, state.gold.y - state.azure.y);
+      const isClashing = clashDist < 220 && state.celebrateTimer <= 0;
+      
+      const updateDragon = (drag, other) => {
+        let tx = drag.targetX;
+        let ty = drag.targetY;
+        
+        if (state.celebrateTimer > 0) {
+          const cx = width / 2;
+          const cy = height / 2;
+          const phaseOffset = drag.theme === 'gold' ? 0 : Math.PI;
+          tx = cx + Math.cos(state.celebratePhase + phaseOffset) * 165;
+          ty = cy + Math.sin(state.celebratePhase + phaseOffset) * 115;
+        } else if (isClashing) {
+          tx = other.x;
+          ty = other.y;
+        } else if (state.mouseActive) {
+          const offsetSign = drag.theme === 'gold' ? -1 : 1;
+          tx = state.mouseX + offsetSign * 60;
+          ty = state.mouseY + offsetSign * 40;
+        } else {
+          const dx = tx - drag.x;
+          const dy = ty - drag.y;
+          const d = Math.hypot(dx, dy);
+          if (d < 80) {
+            drag.targetX = Math.random() * (width - 150) + 75;
+            drag.targetY = Math.random() * (height - 150) + 75;
+          }
+        }
+        
+        const dx = tx - drag.x;
+        const dy = ty - drag.y;
+        const dist = Math.hypot(dx, dy);
+        
+        let targetAngle = Math.atan2(dy, dx);
+        let diff = targetAngle - drag.angle;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        
+        let turnRate = state.celebrateTimer > 0 ? 0.12 : isClashing ? 0.085 : state.mouseActive ? 0.065 : 0.035;
+        drag.angle += diff * turnRate;
+        
+        let baseSpeed = state.celebrateTimer > 0 ? 6.5 : isClashing ? 4.8 : state.mouseActive ? 4.2 : 2.5;
+        let speed = dist < 60 && state.mouseActive ? dist * 0.08 : baseSpeed;
+        
+        drag.x += Math.cos(drag.angle) * speed;
+        drag.y += Math.sin(drag.angle) * speed;
+        
+        if (drag.x < -100) drag.x = width + 100;
+        if (drag.x > width + 100) drag.x = -100;
+        if (drag.y < -100) drag.y = height + 100;
+        if (drag.y > height + 100) drag.y = -100;
+        
+        const spacing = 14;
+        for (let i = 0; i < drag.segments.length; i++) {
+          const parent = i === 0 ? { x: drag.x, y: drag.y, angle: drag.angle } : drag.segments[i - 1];
+          const seg = drag.segments[i];
+          const sdx = parent.x - seg.x;
+          const sdy = parent.y - seg.y;
+          const sdist = Math.hypot(sdx, sdy);
+          
+          if (sdist > spacing) {
+            const sangle = Math.atan2(sdy, sdx);
+            seg.x = parent.x - Math.cos(sangle) * spacing;
+            seg.y = parent.y - Math.sin(sangle) * spacing;
+            seg.angle = sangle;
+          }
+        }
+      };
+      
+      updateDragon(state.gold, state.azure);
+      updateDragon(state.azure, state.gold);
+      
+      if (isClashing && clashDist < 65) {
+        const bounceAngle = Math.atan2(state.gold.y - state.azure.y, state.gold.x - state.azure.x);
+        state.gold.angle = bounceAngle + (Math.random() - 0.5) * 0.6;
+        state.azure.angle = bounceAngle + Math.PI + (Math.random() - 0.5) * 0.6;
+        state.gold.targetX = Math.random() * width;
+        state.gold.targetY = Math.random() * height;
+        state.azure.targetX = Math.random() * width;
+        state.azure.targetY = Math.random() * height;
+      }
       
       if (state.celebrateTimer > 0) {
-        const cx = width / 2;
-        const cy = height / 2;
-        tx = cx + Math.cos(state.celebratePhase) * 180;
-        ty = cy + Math.sin(state.celebratePhase) * 120;
-        state.celebratePhase += 0.08;
-      } else if (state.mouseActive) {
-        tx = state.mouseX;
-        ty = state.mouseY;
-      } else {
-        const dx = tx - state.x;
-        const dy = ty - state.y;
-        const d = Math.hypot(dx, dy);
-        if (d < 80) {
-          state.targetX = Math.random() * (width - 100) + 50;
-          state.targetY = Math.random() * (height - 100) + 50;
-        }
+        state.celebratePhase += 0.065;
+        state.celebrateTimer--;
       }
       
-      const dx = tx - state.x;
-      const dy = ty - state.y;
-      const dist = Math.hypot(dx, dy);
-      
-      let targetAngle = Math.atan2(dy, dx);
-      let diff = targetAngle - state.angle;
-      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      
-      const turnRate = state.celebrateTimer > 0 ? 0.12 : state.mouseActive ? 0.07 : 0.035;
-      state.angle += diff * turnRate;
-      
-      const baseSpeed = state.celebrateTimer > 0 ? 6.5 : state.mouseActive ? 5 : 2.5;
-      const speed = dist < 60 && state.mouseActive ? dist * 0.08 : baseSpeed;
-      
-      state.x += Math.cos(state.angle) * speed;
-      state.y += Math.sin(state.angle) * speed;
-      
-      if (state.x < -100) state.x = width + 100;
-      if (state.x > width + 100) state.x = -100;
-      if (state.y < -100) state.y = height + 100;
-      if (state.y > height + 100) state.y = -100;
-      
-      const spacing = 14;
-      for (let i = 0; i < state.segments.length; i++) {
-        const parent = i === 0 ? { x: state.x, y: state.y, angle: state.angle } : state.segments[i - 1];
-        const seg = state.segments[i];
-        const sdx = parent.x - seg.x;
-        const sdy = parent.y - seg.y;
-        const sdist = Math.hypot(sdx, sdy);
-        
-        if (sdist > spacing) {
-          const sangle = Math.atan2(sdy, sdx);
-          seg.x = parent.x - Math.cos(sangle) * spacing;
-          seg.y = parent.y - Math.sin(sangle) * spacing;
-          seg.angle = sangle;
-        }
-      }
-      
-      if (time % 2 === 0) {
-        const tail = state.segments[state.segments.length - 1];
-        state.particles.push({
-          x: tail.x,
-          y: tail.y,
-          vx: (Math.random() - 0.5) * 1 - Math.cos(tail.angle) * 1.5,
-          vy: (Math.random() - 0.5) * 1 - Math.sin(tail.angle) * 1.5,
-          size: 2 + Math.random() * 3,
-          color: '#06b6d4',
-          life: 30 + Math.random() * 20,
-          maxLife: 50,
-        });
-        
-        if (Math.random() > 0.4) {
-          const randomSeg = state.segments[Math.floor(Math.random() * state.segments.length)];
+      const spawnEmbers = (drag, mainColor, secondColor) => {
+        if (time % 2 === 0) {
+          const tail = drag.segments[drag.segments.length - 1];
           state.particles.push({
-            x: randomSeg.x,
-            y: randomSeg.y,
-            vx: (Math.random() - 0.5) * 0.5,
-            vy: (Math.random() - 0.5) * 0.5 - 0.2,
-            size: 1.5 + Math.random() * 2,
-            color: '#fbbf24',
-            life: 20 + Math.random() * 15,
-            maxLife: 35,
+            x: tail.x,
+            y: tail.y,
+            vx: (Math.random() - 0.5) * 1 - Math.cos(tail.angle) * 1.5,
+            vy: (Math.random() - 0.5) * 1 - Math.sin(tail.angle) * 1.5,
+            size: 2 + Math.random() * 3,
+            color: mainColor,
+            life: 30 + Math.random() * 20,
+            maxLife: 50,
           });
+          
+          if (Math.random() > 0.4) {
+            const randomSeg = drag.segments[Math.floor(Math.random() * drag.segments.length)];
+            state.particles.push({
+              x: randomSeg.x,
+              y: randomSeg.y,
+              vx: (Math.random() - 0.5) * 0.5,
+              vy: (Math.random() - 0.5) * 0.5 - 0.2,
+              size: 1.5 + Math.random() * 2,
+              color: secondColor,
+              life: 20 + Math.random() * 15,
+              maxLife: 35,
+            });
+          }
         }
-      }
+      };
       
-      const mouthX = state.x + Math.cos(state.angle) * 22;
-      const mouthY = state.y + Math.sin(state.angle) * 22;
+      spawnEmbers(state.gold, '#06b6d4', '#fbbf24');
+      spawnEmbers(state.azure, '#d946ef', '#22d3ee');
       
-      if (state.fireTimer > 0) {
-        state.fireTimer--;
-        for (let j = 0; j < 5; j++) {
-          const fangle = state.angle + (Math.random() - 0.5) * 0.45;
-          const fspeed = 4.5 + Math.random() * 6.5;
+      const triggerFire = (drag, colorScale) => {
+        const mouthX = drag.x + Math.cos(drag.angle) * 22;
+        const mouthY = drag.y + Math.sin(drag.angle) * 22;
+        
+        for (let j = 0; j < 4; j++) {
+          const fangle = drag.angle + (Math.random() - 0.5) * 0.45;
+          const fspeed = 4.5 + Math.random() * 6;
           state.particles.push({
             x: mouthX,
             y: mouthY,
             vx: Math.cos(fangle) * fspeed + (Math.random() - 0.5) * 1,
             vy: Math.sin(fangle) * fspeed + (Math.random() - 0.5) * 1,
             size: 3 + Math.random() * 7,
-            color: Math.random() > 0.45 ? '#f97316' : Math.random() > 0.5 ? '#facc15' : '#ef4444',
-            life: 25 + Math.random() * 20,
-            maxLife: 45,
+            color: colorScale[Math.floor(Math.random() * colorScale.length)],
+            life: 25 + Math.random() * 18,
+            maxLife: 43,
           });
+        }
+      };
+      
+      const fireColorsGold = ['#f97316', '#facc15', '#ef4444', '#f59e0b'];
+      const fireColorsAzure = ['#06b6d4', '#3b82f6', '#d946ef', '#a855f7'];
+      
+      if (isClashing && clashDist < 160) {
+        state.gold.fireTimer = Math.max(state.gold.fireTimer, 2);
+        state.azure.fireTimer = Math.max(state.azure.fireTimer, 2);
+        
+        const mx = (state.gold.x + state.azure.x) / 2;
+        const my = (state.gold.y + state.azure.y) / 2;
+        if (time % 3 === 0) {
+          for (let k = 0; k < 4; k++) {
+            state.particles.push({
+              x: mx + (Math.random() - 0.5) * 25,
+              y: my + (Math.random() - 0.5) * 25,
+              vx: (Math.random() - 0.5) * 6,
+              vy: (Math.random() - 0.5) * 6 - 1,
+              size: 2.5 + Math.random() * 4.5,
+              color: Math.random() > 0.5 ? '#ffffff' : Math.random() > 0.5 ? '#fde047' : '#22d3ee',
+              life: 18 + Math.random() * 14,
+              maxLife: 32,
+            });
+          }
         }
       }
       
+      if (state.gold.fireTimer > 0) {
+        state.gold.fireTimer--;
+        triggerFire(state.gold, fireColorsGold);
+      }
+      if (state.azure.fireTimer > 0) {
+        state.azure.fireTimer--;
+        triggerFire(state.azure, fireColorsAzure);
+      }
+      
       if (state.celebrateTimer > 0) {
-        state.celebrateTimer--;
-        for (let j = 0; j < 3; j++) {
+        for (let j = 0; j < 2; j++) {
           const cangle = Math.random() * Math.PI * 2;
-          const cspeed = 2.5 + Math.random() * 6;
+          const cspeed = 2.5 + Math.random() * 5.5;
           state.particles.push({
-            x: state.x,
-            y: state.y,
+            x: width / 2,
+            y: height / 2,
             vx: Math.cos(cangle) * cspeed,
             vy: Math.sin(cangle) * cspeed,
             size: 3 + Math.random() * 5,
-            color: Math.random() > 0.5 ? '#06b6d4' : '#fbbf24',
+            color: Math.random() > 0.5 ? '#22d3ee' : '#fde047',
             life: 35 + Math.random() * 25,
             maxLife: 60,
           });
@@ -202,9 +610,9 @@ function Dragon() {
         const p = state.particles[i];
         p.x += p.vx;
         p.y += p.vy;
-        p.vx *= 0.97;
-        p.vy *= 0.97;
-        p.vy -= 0.01;
+        p.vx *= 0.975;
+        p.vy *= 0.975;
+        p.vy -= 0.008;
         p.life--;
         
         if (p.life <= 0) {
@@ -217,155 +625,198 @@ function Dragon() {
         ctx.globalAlpha = pct;
         ctx.fillStyle = p.color;
         ctx.shadowColor = p.color;
-        ctx.shadowBlur = p.size * 1.5;
+        ctx.shadowBlur = p.size * 1.6;
         
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size * (0.3 + 0.7 * pct), 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, p.size * (0.35 + 0.65 * pct), 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }
       
-      const wingFlap = Math.sin(time * 0.1) * 0.5;
+      const wingFlap = Math.sin(time * 0.11) * 0.5;
       
-      for (let i = state.segments.length - 1; i >= 0; i--) {
-        const seg = state.segments[i];
-        const r = i === 0 ? 13 : Math.max(6, 15 - i * 0.75);
+      const drawDragonEntity = (drag, colors) => {
+        for (let i = drag.segments.length - 1; i >= 0; i--) {
+          const seg = drag.segments[i];
+          const r = i === 0 ? 13 : Math.max(5.5, 14.5 - i * 0.72);
+          
+          ctx.save();
+          
+          const grad = ctx.createRadialGradient(seg.x, seg.y, 2, seg.x, seg.y, r);
+          grad.addColorStop(0, colors.bodyInner);
+          grad.addColorStop(0.5, colors.bodyMid);
+          grad.addColorStop(1, colors.bodyOuter);
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(seg.x, seg.y, r, 0, Math.PI * 2);
+          ctx.fill();
+          
+          const nx = -Math.sin(seg.angle);
+          const ny = Math.cos(seg.angle);
+          ctx.strokeStyle = colors.spine;
+          ctx.lineWidth = 2.5;
+          ctx.shadowColor = colors.spine;
+          ctx.shadowBlur = 8;
+          ctx.beginPath();
+          ctx.moveTo(seg.x, seg.y);
+          ctx.lineTo(seg.x + nx * (r + 7), seg.y + ny * (r + 7));
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+          
+          ctx.restore();
+          
+          if (i === 1) {
+            ctx.save();
+            ctx.translate(seg.x, seg.y);
+            ctx.rotate(seg.angle);
+            
+            ctx.save();
+            ctx.scale(1, -1);
+            drawWing(ctx, wingFlap, colors.wing1, colors.wing2, colors.wing3);
+            ctx.restore();
+            
+            ctx.save();
+            drawWing(ctx, wingFlap, colors.wing1, colors.wing2, colors.wing3);
+            ctx.restore();
+            
+            ctx.restore();
+          }
+        }
+        
+        const tail = drag.segments[drag.segments.length - 1];
+        ctx.save();
+        ctx.translate(tail.x, tail.y);
+        ctx.rotate(tail.angle);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        const tailSway = Math.sin(time * 0.12) * 8;
+        ctx.quadraticCurveTo(-15, -15 + tailSway, -28, -5 + tailSway);
+        ctx.quadraticCurveTo(-18, 0, -28, 5 + tailSway);
+        ctx.quadraticCurveTo(-15, 15 + tailSway, 0, 0);
+        const tailGrad = ctx.createLinearGradient(0, 0, -28, 0);
+        tailGrad.addColorStop(0, colors.bodyMid);
+        tailGrad.addColorStop(1, colors.spine);
+        ctx.fillStyle = tailGrad;
+        ctx.fill();
+        ctx.restore();
         
         ctx.save();
+        ctx.translate(drag.x, drag.y);
+        ctx.rotate(drag.angle);
         
-        const grad = ctx.createRadialGradient(seg.x, seg.y, 2, seg.x, seg.y, r);
-        grad.addColorStop(0, '#fde047');
-        grad.addColorStop(0.5, '#ea580c');
-        grad.addColorStop(1, '#7c2d12');
-        ctx.fillStyle = grad;
+        const snoutGrad = ctx.createLinearGradient(-10, -10, 22, 10);
+        snoutGrad.addColorStop(0, colors.bodyInner);
+        snoutGrad.addColorStop(0.5, colors.bodyMid);
+        snoutGrad.addColorStop(1, colors.headSnout);
+        ctx.fillStyle = snoutGrad;
         ctx.beginPath();
-        ctx.arc(seg.x, seg.y, r, 0, Math.PI * 2);
+        ctx.moveTo(10, -10);
+        ctx.lineTo(24, -5);
+        ctx.lineTo(24, 5);
+        ctx.lineTo(10, 10);
+        ctx.quadraticCurveTo(-12, 14, -12, -14);
+        ctx.closePath();
         ctx.fill();
         
-        const nx = -Math.sin(seg.angle);
-        const ny = Math.cos(seg.angle);
-        ctx.strokeStyle = '#06b6d4';
-        ctx.lineWidth = 2.5;
-        ctx.shadowColor = '#06b6d4';
-        ctx.shadowBlur = 8;
+        ctx.strokeStyle = colors.bodyInner;
+        ctx.lineWidth = 3.5;
+        ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo(seg.x, seg.y);
-        ctx.lineTo(seg.x + nx * (r + 7), seg.y + ny * (r + 7));
+        ctx.moveTo(-4, -7);
+        ctx.quadraticCurveTo(-16, -20, -28, -17);
+        ctx.moveTo(-4, 7);
+        ctx.quadraticCurveTo(-16, 20, -28, 17);
         ctx.stroke();
+        
+        ctx.fillStyle = colors.eyeGlow;
+        ctx.shadowColor = colors.eyeGlow;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(8, -5, 3.5, 0, Math.PI * 2);
+        ctx.arc(8, 5, 3.5, 0, Math.PI * 2);
+        ctx.fill();
         ctx.shadowBlur = 0;
         
-        ctx.restore();
+        ctx.strokeStyle = colors.whisker;
+        ctx.lineWidth = 1.5;
+        const wSway1 = Math.sin(time * 0.08) * 3;
+        const wSway2 = Math.sin(time * 0.08 + Math.PI) * 3;
+        ctx.beginPath();
+        ctx.moveTo(18, -4);
+        ctx.quadraticCurveTo(8, -14 + wSway1, -22, -10 + wSway1);
+        ctx.moveTo(18, 4);
+        ctx.quadraticCurveTo(8, 14 + wSway2, -22, 10 + wSway2);
+        ctx.stroke();
         
-        if (i === 1) {
-          ctx.save();
-          ctx.translate(seg.x, seg.y);
-          ctx.rotate(seg.angle);
-          
-          ctx.save();
-          ctx.scale(1, -1);
-          drawWing(ctx, wingFlap);
-          ctx.restore();
-          
-          ctx.save();
-          drawWing(ctx, wingFlap);
-          ctx.restore();
-          
-          ctx.restore();
-        }
+        ctx.restore();
+      };
+      
+      const drawWing = (c, flap, w1, w2, w3) => {
+        c.beginPath();
+        c.moveTo(0, 0);
+        const wingLen = 42;
+        const flapOffset = flap * 14;
+        c.quadraticCurveTo(12, 15 - flapOffset, wingLen, 25 - flapOffset);
+        c.quadraticCurveTo(18, 30 - flapOffset, 0, 0);
+        const wgrad = c.createLinearGradient(0, 0, wingLen, 25);
+        wgrad.addColorStop(0, w1);
+        wgrad.addColorStop(0.6, w2);
+        wgrad.addColorStop(1, w3);
+        c.fillStyle = wgrad;
+        c.fill();
+        
+        c.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        c.lineWidth = 1;
+        c.beginPath();
+        c.moveTo(0, 0);
+        c.lineTo(wingLen, 25 - flapOffset);
+        c.moveTo(0, 0);
+        c.lineTo(wingLen - 8, 16 - flapOffset);
+        c.stroke();
+      };
+      
+      const goldColors = {
+        bodyInner: '#fde047',
+        bodyMid: '#ea580c',
+        bodyOuter: '#7c2d12',
+        spine: '#06b6d4',
+        headSnout: '#b91c1c',
+        eyeGlow: '#22d3ee',
+        whisker: '#f59e0b',
+        wing1: '#fde047',
+        wing2: '#ea580c',
+        wing3: '#a855f7',
+      };
+      
+      const azureColors = {
+        bodyInner: '#22d3ee',
+        bodyMid: '#2563eb',
+        bodyOuter: '#1e3a8a',
+        spine: '#d946ef',
+        headSnout: '#6d28d9',
+        eyeGlow: '#fbbf24',
+        whisker: '#38bdf8',
+        wing1: '#22d3ee',
+        wing2: '#2563eb',
+        wing3: '#f43f5e',
+      };
+      
+      // Draw Azure Dragon
+      drawDragonEntity(state.azure, azureColors);
+      
+      // Draw Gold Dragon
+      drawDragonEntity(state.gold, goldColors);
+      
+      // Draw Data Pearl in center when celebrating
+      if (state.celebrateTimer > 0) {
+        drawPearl(ctx, width / 2, height / 2, state.celebrateTimer);
       }
       
-      const tail = state.segments[state.segments.length - 1];
-      ctx.save();
-      ctx.translate(tail.x, tail.y);
-      ctx.rotate(tail.angle);
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      const tailSway = Math.sin(time * 0.12) * 8;
-      ctx.quadraticCurveTo(-15, -15 + tailSway, -30, -5 + tailSway);
-      ctx.quadraticCurveTo(-20, 0, -30, 5 + tailSway);
-      ctx.quadraticCurveTo(-15, 15 + tailSway, 0, 0);
-      const tailGrad = ctx.createLinearGradient(0, 0, -30, 0);
-      tailGrad.addColorStop(0, '#ea580c');
-      tailGrad.addColorStop(1, '#06b6d4');
-      ctx.fillStyle = tailGrad;
-      ctx.fill();
-      ctx.restore();
-      
-      ctx.save();
-      ctx.translate(state.x, state.y);
-      ctx.rotate(state.angle);
-      
-      const snoutGrad = ctx.createLinearGradient(-10, -10, 22, 10);
-      snoutGrad.addColorStop(0, '#fde047');
-      snoutGrad.addColorStop(0.5, '#ea580c');
-      snoutGrad.addColorStop(1, '#b91c1c');
-      ctx.fillStyle = snoutGrad;
-      ctx.beginPath();
-      ctx.moveTo(10, -10);
-      ctx.lineTo(24, -5);
-      ctx.lineTo(24, 5);
-      ctx.lineTo(10, 10);
-      ctx.quadraticCurveTo(-12, 14, -12, -14);
-      ctx.closePath();
-      ctx.fill();
-      
-      ctx.strokeStyle = '#fde047';
-      ctx.lineWidth = 3.5;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-4, -7);
-      ctx.quadraticCurveTo(-16, -20, -28, -17);
-      ctx.moveTo(-4, 7);
-      ctx.quadraticCurveTo(-16, 20, -28, 17);
-      ctx.stroke();
-      
-      ctx.fillStyle = '#22d3ee';
-      ctx.shadowColor = '#06b6d4';
-      ctx.shadowBlur = 10;
-      ctx.beginPath();
-      ctx.arc(8, -5, 3.5, 0, Math.PI * 2);
-      ctx.arc(8, 5, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 1.5;
-      const wSway1 = Math.sin(time * 0.08) * 3;
-      const wSway2 = Math.sin(time * 0.08 + Math.PI) * 3;
-      ctx.beginPath();
-      ctx.moveTo(18, -4);
-      ctx.quadraticCurveTo(8, -14 + wSway1, -22, -10 + wSway1);
-      ctx.moveTo(18, 4);
-      ctx.quadraticCurveTo(8, 14 + wSway2, -22, 10 + wSway2);
-      ctx.stroke();
-      
-      ctx.restore();
+      // Draw Instruments
+      drawDrum(ctx, width, height, state.drumPulse);
+      drawGong(ctx, width, height, state.gongPulse);
       
       animationFrameId = requestAnimationFrame(loop);
-    };
-    
-    const drawWing = (c, flap) => {
-      c.beginPath();
-      c.moveTo(0, 0);
-      const wingLen = 42;
-      const flapOffset = flap * 14;
-      c.quadraticCurveTo(12, 15 - flapOffset, wingLen, 25 - flapOffset);
-      c.quadraticCurveTo(18, 30 - flapOffset, 0, 0);
-      const wgrad = c.createLinearGradient(0, 0, wingLen, 25);
-      wgrad.addColorStop(0, '#fde047');
-      wgrad.addColorStop(0.6, '#ea580c');
-      wgrad.addColorStop(1, '#a855f7');
-      c.fillStyle = wgrad;
-      c.fill();
-      
-      c.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      c.lineWidth = 1;
-      c.beginPath();
-      c.moveTo(0, 0);
-      c.lineTo(wingLen, 25 - flapOffset);
-      c.moveTo(0, 0);
-      c.lineTo(wingLen - 8, 16 - flapOffset);
-      c.stroke();
     };
     
     animationFrameId = requestAnimationFrame(loop);
@@ -373,6 +824,18 @@ function Dragon() {
     const handleCelebration = () => {
       state.celebrateTimer = 180;
       state.celebratePhase = 0;
+      if (audioCtxRef.current && !isMuted) {
+        const now = audioCtxRef.current.currentTime;
+        // Play celebratory gong strike + suona fanfare!
+        playGong(audioCtxRef.current, now);
+        
+        const scale = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50];
+        scale.forEach((freq, idx) => {
+          const delay = idx * 0.08;
+          const dur = idx === scale.length - 1 ? 0.55 : 0.08;
+          playSuona(audioCtxRef.current, freq, now + delay, dur);
+        });
+      }
     };
     window.addEventListener('qc-file-uploaded', handleCelebration);
     
@@ -383,9 +846,29 @@ function Dragon() {
       window.removeEventListener('qc-file-uploaded', handleCelebration);
       cancelAnimationFrame(animationFrameId);
     };
-  }, []);
+  }, [isMuted]);
 
-  return <canvas ref={canvasRef} className="dragon-canvas-container" />;
+  return (
+    <>
+      <canvas ref={canvasRef} className="dragon-canvas-container" />
+      <button 
+        className={`audio-toggle-btn ${!isMuted ? 'playing' : ''}`}
+        onClick={toggleAudio}
+        title="Bật/Tắt Nhạc Hội Rồng"
+        type="button"
+      >
+        {isMuted ? (
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+            <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM12 4L9.91 6.09 12 8.18V4zm-8.86-.43L1.71 4.71 6 9H3v6h4l5 5v-6.88l4.7 4.7c-.66.52-1.4 1.01-2.2 1.41v2.04c1.35-.61 2.54-1.46 3.51-2.52l2.43 2.43 1.41-1.41L3.14 3.57zM12 15.82v-4.64L7.82 7H7v4H4v2h3v3.18l5-3.18z"/>
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+          </svg>
+        )}
+      </button>
+    </>
+  );
 }
 
 function extractJsonArray(input) {
