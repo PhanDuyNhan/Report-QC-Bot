@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Chart from 'chart.js/auto';
 
-<<<<<<< HEAD
 function Dragon() {
   const canvasRef = useRef(null);
   const [isMuted, setIsMuted] = useState(true);
@@ -743,8 +742,6 @@ function Dragon() {
   );
 }
 
-=======
->>>>>>> parent of aa0c315 (xin chào)
 function extractJsonArray(input) {
   if (!input || input === 'None') return [];
   let text = String(input)
