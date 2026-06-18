@@ -2,54 +2,390 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Chart from 'chart.js/auto';
 
 function Dragon() {
-  return (
-    <svg className="dragon" viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="dragonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#fbbf24" stopOpacity="1" />
-          <stop offset="50%" stopColor="#f59e0b" stopOpacity="1" />
-          <stop offset="100%" stopColor="#d97706" stopOpacity="1" />
-        </linearGradient>
-        <filter id="dragonGlow">
-          <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-          <feMerge>
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
-      </defs>
+  const canvasRef = useRef(null);
+  const dragonState = useRef({
+    x: window.innerWidth / 2,
+    y: window.innerHeight / 2,
+    angle: 0,
+    speed: 4,
+    targetX: Math.random() * window.innerWidth,
+    targetY: Math.random() * window.innerHeight,
+    segments: Array.from({ length: 12 }, (_, i) => ({
+      x: window.innerWidth / 2 - i * 15,
+      y: window.innerHeight / 2,
+      angle: 0,
+    })),
+    particles: [],
+    mouseX: 0,
+    mouseY: 0,
+    mouseActive: false,
+    mouseLastActive: 0,
+    celebrateTimer: 0,
+    celebratePhase: 0,
+    fireTimer: 0,
+  });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    let animationFrameId;
+    let time = 0;
+    
+    const state = dragonState.current;
+    
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    window.addEventListener('resize', resize);
+    resize();
+    
+    const handleMouseMove = (e) => {
+      state.mouseX = e.clientX;
+      state.mouseY = e.clientY;
+      state.mouseActive = true;
+      state.mouseLastActive = Date.now();
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+
+    const handleMouseDown = (e) => {
+      if (e.target.closest('button, input, select, a, [role="button"], pre, code, table, tr, td')) return;
+      state.fireTimer = 45;
+      state.targetX = e.clientX;
+      state.targetY = e.clientY;
+      state.mouseActive = true;
+      state.mouseLastActive = Date.now();
+    };
+    window.addEventListener('mousedown', handleMouseDown);
+    
+    const loop = () => {
+      time += 1;
+      const width = canvas.width;
+      const height = canvas.height;
       
-      {/* Tail */}
-      <path d="M 10 50 Q 20 40 30 50 T 50 50" stroke="url(#dragonGrad)" strokeWidth="8" fill="none" strokeLinecap="round" filter="url(#dragonGlow)"/>
+      if (state.mouseActive && Date.now() - state.mouseLastActive > 4000) {
+        state.mouseActive = false;
+      }
       
-      {/* Body */}
-      <ellipse cx="70" cy="50" rx="30" ry="20" fill="url(#dragonGrad)" filter="url(#dragonGlow)"/>
+      let tx = state.targetX;
+      let ty = state.targetY;
       
-      {/* Head */}
-      <circle cx="110" cy="50" r="18" fill="url(#dragonGrad)" filter="url(#dragonGlow)"/>
+      if (state.celebrateTimer > 0) {
+        const cx = width / 2;
+        const cy = height / 2;
+        tx = cx + Math.cos(state.celebratePhase) * 180;
+        ty = cy + Math.sin(state.celebratePhase) * 120;
+        state.celebratePhase += 0.08;
+      } else if (state.mouseActive) {
+        tx = state.mouseX;
+        ty = state.mouseY;
+      } else {
+        const dx = tx - state.x;
+        const dy = ty - state.y;
+        const d = Math.hypot(dx, dy);
+        if (d < 80) {
+          state.targetX = Math.random() * (width - 100) + 50;
+          state.targetY = Math.random() * (height - 100) + 50;
+        }
+      }
       
-      {/* Horns */}
-      <line x1="105" y1="25" x2="100" y2="10" stroke="url(#dragonGrad)" strokeWidth="4" strokeLinecap="round"/>
-      <line x1="115" y1="25" x2="120" y2="10" stroke="url(#dragonGrad)" strokeWidth="4" strokeLinecap="round"/>
+      const dx = tx - state.x;
+      const dy = ty - state.y;
+      const dist = Math.hypot(dx, dy);
       
-      {/* Eyes */}
-      <circle cx="106" cy="45" r="3" fill="#000"/>
-      <circle cx="114" cy="45" r="3" fill="#000"/>
-      <circle cx="107" cy="44" r="1.5" fill="#fff"/>
-      <circle cx="115" cy="44" r="1.5" fill="#fff"/>
+      let targetAngle = Math.atan2(dy, dx);
+      let diff = targetAngle - state.angle;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
       
-      {/* Mouth */}
-      <path d="M 118 52 Q 125 55 130 52" stroke="#000" strokeWidth="2" fill="none" strokeLinecap="round"/>
+      const turnRate = state.celebrateTimer > 0 ? 0.12 : state.mouseActive ? 0.07 : 0.035;
+      state.angle += diff * turnRate;
       
-      {/* Wings */}
-      <path d="M 80 40 Q 85 20 100 30" stroke="url(#dragonGrad)" strokeWidth="3" fill="none" opacity="0.7" strokeLinecap="round"/>
-      <path d="M 80 60 Q 85 80 100 70" stroke="url(#dragonGrad)" strokeWidth="3" fill="none" opacity="0.7" strokeLinecap="round"/>
+      const baseSpeed = state.celebrateTimer > 0 ? 6.5 : state.mouseActive ? 5 : 2.5;
+      const speed = dist < 60 && state.mouseActive ? dist * 0.08 : baseSpeed;
       
-      {/* Claws */}
-      <circle cx="60" cy="68" r="3" fill="url(#dragonGrad)"/>
-      <circle cx="70" cy="70" r="3" fill="url(#dragonGrad)"/>
-    </svg>
-  );
+      state.x += Math.cos(state.angle) * speed;
+      state.y += Math.sin(state.angle) * speed;
+      
+      if (state.x < -100) state.x = width + 100;
+      if (state.x > width + 100) state.x = -100;
+      if (state.y < -100) state.y = height + 100;
+      if (state.y > height + 100) state.y = -100;
+      
+      const spacing = 14;
+      for (let i = 0; i < state.segments.length; i++) {
+        const parent = i === 0 ? { x: state.x, y: state.y, angle: state.angle } : state.segments[i - 1];
+        const seg = state.segments[i];
+        const sdx = parent.x - seg.x;
+        const sdy = parent.y - seg.y;
+        const sdist = Math.hypot(sdx, sdy);
+        
+        if (sdist > spacing) {
+          const sangle = Math.atan2(sdy, sdx);
+          seg.x = parent.x - Math.cos(sangle) * spacing;
+          seg.y = parent.y - Math.sin(sangle) * spacing;
+          seg.angle = sangle;
+        }
+      }
+      
+      if (time % 2 === 0) {
+        const tail = state.segments[state.segments.length - 1];
+        state.particles.push({
+          x: tail.x,
+          y: tail.y,
+          vx: (Math.random() - 0.5) * 1 - Math.cos(tail.angle) * 1.5,
+          vy: (Math.random() - 0.5) * 1 - Math.sin(tail.angle) * 1.5,
+          size: 2 + Math.random() * 3,
+          color: '#06b6d4',
+          life: 30 + Math.random() * 20,
+          maxLife: 50,
+        });
+        
+        if (Math.random() > 0.4) {
+          const randomSeg = state.segments[Math.floor(Math.random() * state.segments.length)];
+          state.particles.push({
+            x: randomSeg.x,
+            y: randomSeg.y,
+            vx: (Math.random() - 0.5) * 0.5,
+            vy: (Math.random() - 0.5) * 0.5 - 0.2,
+            size: 1.5 + Math.random() * 2,
+            color: '#fbbf24',
+            life: 20 + Math.random() * 15,
+            maxLife: 35,
+          });
+        }
+      }
+      
+      const mouthX = state.x + Math.cos(state.angle) * 22;
+      const mouthY = state.y + Math.sin(state.angle) * 22;
+      
+      if (state.fireTimer > 0) {
+        state.fireTimer--;
+        for (let j = 0; j < 5; j++) {
+          const fangle = state.angle + (Math.random() - 0.5) * 0.45;
+          const fspeed = 4.5 + Math.random() * 6.5;
+          state.particles.push({
+            x: mouthX,
+            y: mouthY,
+            vx: Math.cos(fangle) * fspeed + (Math.random() - 0.5) * 1,
+            vy: Math.sin(fangle) * fspeed + (Math.random() - 0.5) * 1,
+            size: 3 + Math.random() * 7,
+            color: Math.random() > 0.45 ? '#f97316' : Math.random() > 0.5 ? '#facc15' : '#ef4444',
+            life: 25 + Math.random() * 20,
+            maxLife: 45,
+          });
+        }
+      }
+      
+      if (state.celebrateTimer > 0) {
+        state.celebrateTimer--;
+        for (let j = 0; j < 3; j++) {
+          const cangle = Math.random() * Math.PI * 2;
+          const cspeed = 2.5 + Math.random() * 6;
+          state.particles.push({
+            x: state.x,
+            y: state.y,
+            vx: Math.cos(cangle) * cspeed,
+            vy: Math.sin(cangle) * cspeed,
+            size: 3 + Math.random() * 5,
+            color: Math.random() > 0.5 ? '#06b6d4' : '#fbbf24',
+            life: 35 + Math.random() * 25,
+            maxLife: 60,
+          });
+        }
+      }
+      
+      ctx.clearRect(0, 0, width, height);
+      
+      for (let i = state.particles.length - 1; i >= 0; i--) {
+        const p = state.particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= 0.97;
+        p.vy *= 0.97;
+        p.vy -= 0.01;
+        p.life--;
+        
+        if (p.life <= 0) {
+          state.particles.splice(i, 1);
+          continue;
+        }
+        
+        const pct = p.life / p.maxLife;
+        ctx.save();
+        ctx.globalAlpha = pct;
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = p.size * 1.5;
+        
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (0.3 + 0.7 * pct), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      
+      const wingFlap = Math.sin(time * 0.1) * 0.5;
+      
+      for (let i = state.segments.length - 1; i >= 0; i--) {
+        const seg = state.segments[i];
+        const r = i === 0 ? 13 : Math.max(6, 15 - i * 0.75);
+        
+        ctx.save();
+        
+        const grad = ctx.createRadialGradient(seg.x, seg.y, 2, seg.x, seg.y, r);
+        grad.addColorStop(0, '#fde047');
+        grad.addColorStop(0.5, '#ea580c');
+        grad.addColorStop(1, '#7c2d12');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(seg.x, seg.y, r, 0, Math.PI * 2);
+        ctx.fill();
+        
+        const nx = -Math.sin(seg.angle);
+        const ny = Math.cos(seg.angle);
+        ctx.strokeStyle = '#06b6d4';
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = '#06b6d4';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.moveTo(seg.x, seg.y);
+        ctx.lineTo(seg.x + nx * (r + 7), seg.y + ny * (r + 7));
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        
+        ctx.restore();
+        
+        if (i === 1) {
+          ctx.save();
+          ctx.translate(seg.x, seg.y);
+          ctx.rotate(seg.angle);
+          
+          ctx.save();
+          ctx.scale(1, -1);
+          drawWing(ctx, wingFlap);
+          ctx.restore();
+          
+          ctx.save();
+          drawWing(ctx, wingFlap);
+          ctx.restore();
+          
+          ctx.restore();
+        }
+      }
+      
+      const tail = state.segments[state.segments.length - 1];
+      ctx.save();
+      ctx.translate(tail.x, tail.y);
+      ctx.rotate(tail.angle);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      const tailSway = Math.sin(time * 0.12) * 8;
+      ctx.quadraticCurveTo(-15, -15 + tailSway, -30, -5 + tailSway);
+      ctx.quadraticCurveTo(-20, 0, -30, 5 + tailSway);
+      ctx.quadraticCurveTo(-15, 15 + tailSway, 0, 0);
+      const tailGrad = ctx.createLinearGradient(0, 0, -30, 0);
+      tailGrad.addColorStop(0, '#ea580c');
+      tailGrad.addColorStop(1, '#06b6d4');
+      ctx.fillStyle = tailGrad;
+      ctx.fill();
+      ctx.restore();
+      
+      ctx.save();
+      ctx.translate(state.x, state.y);
+      ctx.rotate(state.angle);
+      
+      const snoutGrad = ctx.createLinearGradient(-10, -10, 22, 10);
+      snoutGrad.addColorStop(0, '#fde047');
+      snoutGrad.addColorStop(0.5, '#ea580c');
+      snoutGrad.addColorStop(1, '#b91c1c');
+      ctx.fillStyle = snoutGrad;
+      ctx.beginPath();
+      ctx.moveTo(10, -10);
+      ctx.lineTo(24, -5);
+      ctx.lineTo(24, 5);
+      ctx.lineTo(10, 10);
+      ctx.quadraticCurveTo(-12, 14, -12, -14);
+      ctx.closePath();
+      ctx.fill();
+      
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-4, -7);
+      ctx.quadraticCurveTo(-16, -20, -28, -17);
+      ctx.moveTo(-4, 7);
+      ctx.quadraticCurveTo(-16, 20, -28, 17);
+      ctx.stroke();
+      
+      ctx.fillStyle = '#22d3ee';
+      ctx.shadowColor = '#06b6d4';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(8, -5, 3.5, 0, Math.PI * 2);
+      ctx.arc(8, 5, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1.5;
+      const wSway1 = Math.sin(time * 0.08) * 3;
+      const wSway2 = Math.sin(time * 0.08 + Math.PI) * 3;
+      ctx.beginPath();
+      ctx.moveTo(18, -4);
+      ctx.quadraticCurveTo(8, -14 + wSway1, -22, -10 + wSway1);
+      ctx.moveTo(18, 4);
+      ctx.quadraticCurveTo(8, 14 + wSway2, -22, 10 + wSway2);
+      ctx.stroke();
+      
+      ctx.restore();
+      
+      animationFrameId = requestAnimationFrame(loop);
+    };
+    
+    const drawWing = (c, flap) => {
+      c.beginPath();
+      c.moveTo(0, 0);
+      const wingLen = 42;
+      const flapOffset = flap * 14;
+      c.quadraticCurveTo(12, 15 - flapOffset, wingLen, 25 - flapOffset);
+      c.quadraticCurveTo(18, 30 - flapOffset, 0, 0);
+      const wgrad = c.createLinearGradient(0, 0, wingLen, 25);
+      wgrad.addColorStop(0, '#fde047');
+      wgrad.addColorStop(0.6, '#ea580c');
+      wgrad.addColorStop(1, '#a855f7');
+      c.fillStyle = wgrad;
+      c.fill();
+      
+      c.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      c.lineWidth = 1;
+      c.beginPath();
+      c.moveTo(0, 0);
+      c.lineTo(wingLen, 25 - flapOffset);
+      c.moveTo(0, 0);
+      c.lineTo(wingLen - 8, 16 - flapOffset);
+      c.stroke();
+    };
+    
+    animationFrameId = requestAnimationFrame(loop);
+    
+    const handleCelebration = () => {
+      state.celebrateTimer = 180;
+      state.celebratePhase = 0;
+    };
+    window.addEventListener('qc-file-uploaded', handleCelebration);
+    
+    return () => {
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('qc-file-uploaded', handleCelebration);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="dragon-canvas-container" />;
 }
 
 function extractJsonArray(input) {
@@ -483,6 +819,8 @@ export default function App() {
     reader.onload = (event) => {
       try {
         setData(processData(String(event.target.result).split('\n')));
+        // Trigger dragon celebration animation
+        window.dispatchEvent(new CustomEvent('qc-file-uploaded'));
       } catch (err) {
         setError(`Parse error: ${err.message}`);
       }
