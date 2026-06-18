@@ -789,3 +789,38 @@ tr:hover td {
     border-color: rgba(56, 189, 248, 0.7);
   }
 }
+
+/* New Dragon Images Styles */
+.dragon-img {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 300px;
+  height: auto;
+  pointer-events: none;
+  z-index: 0;
+  transition: transform 0.1s ease-out;
+  mix-blend-mode: screen; /* Blend black background of AI generated images */
+}
+
+.dragon-img.left {
+  left: -20px;
+}
+
+.dragon-img.right {
+  right: -20px;
+}
+
+@media (max-width: 1200px) {
+  .dragon-img {
+    width: 250px;
+  }
+}
+
+@media (max-width: 800px) {
+  .dragon-img {
+    width: 150px;
+    mix-blend-mode: lighten;
+    opacity: 0.5;
+  }
+}
