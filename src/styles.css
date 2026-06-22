@@ -605,6 +605,39 @@ h2 {
   font-family: var(--font-heading);
 }
 
+/* ── Skipped cases (.skip-card, .skip-reason, .expand-btn) ─────── */
+.skip-card { border-left-color: var(--color-danger); }
+.skip-card:hover { border-left-color: #fca5a5; }
+.skip-reason {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  font-family: var(--font-mono);
+  font-size: 0.7em;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.skip-text {
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--color-inset);
+  border-radius: var(--radius-inset);
+  padding: 10px 12px;
+  font-size: 0.74em;
+}
+.expand-btn {
+  margin-top: 8px;
+  font-size: 0.7em;
+  letter-spacing: 0.05em;
+}
+
+/* ── Comparison charts (.compare-charts) ───────────────────────── */
+.compare-charts { grid-template-columns: 1fr 1fr; }
+.compare-charts .chart-box:nth-child(2n+1) { animation-delay: 200ms; }
+.compare-charts .chart-box:nth-child(2n) { animation-delay: 280ms; }
+
 /* ── Error message (.error-msg) ─────────────────────────────────── */
 .error-msg {
   background: rgba(239, 68, 68, 0.08);

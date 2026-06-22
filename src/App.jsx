@@ -837,7 +837,12 @@ function processData(lines) {
     const pred = extractJsonArray(record.prediction_output);
 
     if (!gold.length || !pred.length) {
-      parseErrors.push(cid);
+      parseErrors.push({
+        cid,
+        reason: !gold.length && !pred.length ? 'missing gold + pred' : !gold.length ? 'missing gold' : 'missing pred',
+        gold: String(record.gold_output ?? ''),
+        pred: String(record.prediction_output ?? ''),
+      });
       return;
     }
 
@@ -857,7 +862,12 @@ function processData(lines) {
 
     const acc = correct / gold.length;
     if (acc === 0) {
-      parseErrors.push(cid);
+      parseErrors.push({
+        cid,
+        reason: 'acc = 0',
+        gold: String(record.gold_output ?? ''),
+        pred: String(record.prediction_output ?? ''),
+      });
       return;
     }
 
@@ -1053,6 +1063,61 @@ function WrongCases({ data }) {
   );
 }
 
+function SkippedCases({ data, name }) {
+  const items = data.parseErrors;
+  const [expanded, setExpanded] = useState({});
+
+  const toggle = (key) => setExpanded((state) => ({ ...state, [key]: !state[key] }));
+
+  if (!items.length) return null;
+
+  return (
+    <div className="wrong-box">
+      <div className="wrong-title">
+        Skipped Cases Browser{name ? ` · ${name}` : ''} ({items.length})
+      </div>
+      {items.map((item, index) => {
+        const goldKey = `g-${index}`;
+        const predKey = `p-${index}`;
+        const goldOpen = expanded[goldKey];
+        const predOpen = expanded[predKey];
+        const goldFull = item.gold || '';
+        const predFull = item.pred || '';
+        const goldText = goldOpen ? goldFull : goldFull.slice(0, 500);
+        const predText = predOpen ? predFull : predFull.slice(0, 500);
+        return (
+          <div className="case-card skip-card" key={`${item.cid}-${index}`}>
+            <div className="case-header">
+              <span className="case-id">Record #{item.cid}</span>
+              <span className="badge skip-reason">{item.reason}</span>
+            </div>
+            <div className="case-grid">
+              <div className="case-col gold-col">
+                <div className="case-col-title">GOLD</div>
+                <div className="case-text skip-text">{goldText || '(empty)'}</div>
+                {goldFull.length > 500 && (
+                  <button className="step-btn expand-btn" onClick={() => toggle(goldKey)} type="button">
+                    {goldOpen ? 'Collapse' : `Expand (+${goldFull.length - 500} chars)`}
+                  </button>
+                )}
+              </div>
+              <div className="case-col pred-col">
+                <div className="case-col-title">PRED</div>
+                <div className="case-text skip-text">{predText || '(empty)'}</div>
+                {predFull.length > 500 && (
+                  <button className="step-btn expand-btn" onClick={() => toggle(predKey)} type="button">
+                    {predOpen ? 'Collapse' : `Expand (+${predFull.length - 500} chars)`}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ValueBlock({ value }) {
   if (Array.isArray(value)) {
     return <pre className="json-value">{JSON.stringify(value, null, 2)}</pre>;
@@ -1229,6 +1294,10 @@ function ComparisonMetrics({ data1, data2, name1, name2 }) {
 function ComparisonCharts({ data1, data2, name1, name2 }) {
   const accRef1 = useRef(null);
   const accRef2 = useRef(null);
+  const stackRef1 = useRef(null);
+  const stackRef2 = useRef(null);
+  const recRef1 = useRef(null);
+  const recRef2 = useRef(null);
   const label1 = name1 || 'Model 1';
   const label2 = name2 || 'Model 2';
 
@@ -1239,56 +1308,80 @@ function ComparisonCharts({ data1, data2, name1, name2 }) {
     const labels = allSteps.map((step) => `Step ${step}`);
     const accs1 = allSteps.map((step) => data1.stepAcc[step] || 0);
     const accs2 = allSteps.map((step) => data2.stepAcc[step] || 0);
+    const correct1 = allSteps.map((step) => data1.stepCorrect[step] || 0);
+    const wrong1 = allSteps.map((step) => (data1.stepTotal[step] || 0) - (data1.stepCorrect[step] || 0));
+    const correct2 = allSteps.map((step) => data2.stepCorrect[step] || 0);
+    const wrong2 = allSteps.map((step) => (data2.stepTotal[step] || 0) - (data2.stepCorrect[step] || 0));
 
     const axisColor = '#94a3b8';
     const gridColor = '#334155';
 
+    const buildAcc = (ref, lbl, accs, color) => new Chart(ref.current, {
+      type: 'bar',
+      data: { labels, datasets: [{ label: lbl, data: accs, backgroundColor: color, borderRadius: 4 }] },
+      options: {
+        plugins: { legend: { labels: { color: axisColor } }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw}%` } } },
+        scales: {
+          x: { ticks: { color: axisColor }, grid: { color: '#1e293b' } },
+          y: { max: 110, ticks: { color: axisColor, callback: (v) => `${v}%` }, grid: { color: gridColor } },
+        },
+      },
+    });
+
+    const buildStack = (ref, correct, wrong) => new Chart(ref.current, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Correct', data: correct, backgroundColor: '#4ade80', borderRadius: 2 },
+          { label: 'Wrong', data: wrong, backgroundColor: '#f87171', borderRadius: 2 },
+        ],
+      },
+      options: {
+        plugins: { legend: { labels: { color: axisColor } } },
+        scales: {
+          x: { stacked: true, ticks: { color: axisColor }, grid: { color: '#1e293b' } },
+          y: { stacked: true, ticks: { color: axisColor }, grid: { color: gridColor } },
+        },
+      },
+    });
+
+    const buildRec = (ref, data) => new Chart(ref.current, {
+      type: 'bar',
+      data: {
+        labels: data.valid.map((r) => `#${r.cid}`),
+        datasets: [{
+          data: data.valid.map((r) => Math.round(r.acc * 1000) / 10),
+          backgroundColor: data.valid.map((r) => {
+            const acc = Math.round(r.acc * 1000) / 10;
+            return acc === 100 ? '#4ade80' : acc >= 70 ? '#facc15' : '#f87171';
+          }),
+          borderRadius: 2,
+        }],
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: axisColor, font: { size: 9 } }, grid: { color: '#1e293b' } },
+          y: { max: 110, ticks: { color: axisColor, callback: (v) => `${v}%` }, grid: { color: gridColor } },
+        },
+      },
+    });
+
     const charts = [
-      new Chart(accRef1.current, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [{
-            label: label1,
-            data: accs1,
-            backgroundColor: '#c084fc',
-            borderRadius: 4
-          }]
-        },
-        options: {
-          plugins: { legend: { labels: { color: axisColor } }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw}%` } } },
-          scales: {
-            x: { ticks: { color: axisColor }, grid: { color: '#1e293b' } },
-            y: { max: 110, ticks: { color: axisColor, callback: (value) => `${value}%` }, grid: { color: gridColor } },
-          },
-        },
-      }),
-      new Chart(accRef2.current, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [{
-            label: label2,
-            data: accs2,
-            backgroundColor: '#22d3ee',
-            borderRadius: 4
-          }]
-        },
-        options: {
-          plugins: { legend: { labels: { color: axisColor } }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw}%` } } },
-          scales: {
-            x: { ticks: { color: axisColor }, grid: { color: '#1e293b' } },
-            y: { max: 110, ticks: { color: axisColor, callback: (value) => `${value}%` }, grid: { color: gridColor } },
-          },
-        },
-      }),
+      buildAcc(accRef1, label1, accs1, '#c084fc'),
+      buildAcc(accRef2, label2, accs2, '#22d3ee'),
+      buildStack(stackRef1, correct1, wrong1),
+      buildStack(stackRef2, correct2, wrong2),
+      buildRec(recRef1, data1),
+      buildRec(recRef2, data2),
     ];
 
     return () => charts.forEach((chart) => chart.destroy());
   }, [data1, data2, label1, label2]);
 
   return (
-    <div className="charts">
+    <div className="charts compare-charts">
       <div className="chart-box">
         <div className="chart-title">{label1} - Per-Step Accuracy %</div>
         <canvas ref={accRef1} height="220" />
@@ -1296,6 +1389,22 @@ function ComparisonCharts({ data1, data2, name1, name2 }) {
       <div className="chart-box">
         <div className="chart-title">{label2} - Per-Step Accuracy %</div>
         <canvas ref={accRef2} height="220" />
+      </div>
+      <div className="chart-box">
+        <div className="chart-title">{label1} - Correct vs Wrong Count</div>
+        <canvas ref={stackRef1} height="220" />
+      </div>
+      <div className="chart-box">
+        <div className="chart-title">{label2} - Correct vs Wrong Count</div>
+        <canvas ref={stackRef2} height="220" />
+      </div>
+      <div className="chart-box">
+        <div className="chart-title">{label1} - Per-Record Accuracy</div>
+        <canvas ref={recRef1} height="180" />
+      </div>
+      <div className="chart-box">
+        <div className="chart-title">{label2} - Per-Record Accuracy</div>
+        <canvas ref={recRef2} height="180" />
       </div>
     </div>
   );
@@ -1527,6 +1636,7 @@ export default function App() {
           </div>
 
           <WrongCases data={data1} />
+          <SkippedCases data={data1} name={name1} />
         </div>
       )}
 
@@ -1535,6 +1645,8 @@ export default function App() {
           <h2>Model Comparison Report</h2>
           <ComparisonMetrics data1={data1} data2={data2} name1={name1} name2={name2} />
           <ComparisonCharts data1={data1} data2={data2} name1={name1} name2={name2} />
+          <SkippedCases data={data1} name={name1 || 'Model 1'} />
+          <SkippedCases data={data2} name={name2 || 'Model 2'} />
         </div>
       )}
 
