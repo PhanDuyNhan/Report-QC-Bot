@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Report QC — Editorial Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/foundation.css" />
+  <link rel="stylesheet" href="../css/shared.css" />
+  <link rel="stylesheet" href="../css/desktop-dashboard.css" />
+</head>
+<body>
+  <main class="page-shell" data-ai-id="page-root">
+
+    <!-- ─── MASTHEAD ─────────────────────────────────────────────── -->
+    <header class="masthead reveal" data-ai-id="masthead">
+      <div class="masthead-brand">
+        <div class="brand-mark" aria-hidden="true">Q</div>
+        <div>
+          <span class="brand-wordmark">Report QC</span>
+          <span class="brand-sub">Editorial Intelligence · Issue 14</span>
+        </div>
+      </div>
+      <div class="masthead-meta" aria-label="Run metadata">
+        <div>
+          <strong>2,148</strong>
+          Records evaluated
+        </div>
+        <div>
+          <strong>11:42</strong>
+          Last run · UTC+7
+        </div>
+        <div>
+          <strong>v0.4.1</strong>
+          Pipeline build
+        </div>
+      </div>
+      <div class="masthead-actions">
+        <button class="audio-toggle" type="button" aria-pressed="false" aria-label="Enable dragon celebration sound">
+          <svg class="icon icon-18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 18V5l12-2v13" />
+            <circle cx="6" cy="18" r="3" />
+            <circle cx="18" cy="16" r="3" />
+          </svg>
+          <span class="audio-label">Sound Off</span>
+        </button>
+        <button class="btn btn-ghost" type="button">
+          <svg class="icon icon-18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" />
+          </svg>
+          Export PDF
+        </button>
+      </div>
+    </header>
+
+    <!-- ─── HERO EDITORIAL ──────────────────────────────────────── -->
+    <section class="dash-hero" data-ai-id="hero" aria-labelledby="dash-h1">
+      <div class="reveal reveal-clip">
+        <span class="eyebrow">Performance Brief · Model A vs. Model B</span>
+        <h1 id="dash-h1">
+          The numbers, <em>quietly</em> told.<br />
+          Two models. Two stories.
+        </h1>
+        <p class="lede">
+          A side-by-side read of 2,148 records across eight evaluation steps.
+          Model A leads in mean accuracy by <strong style="color:var(--color-primary)">+3.7 points</strong>;
+          Model B leads in perfect-record count by <strong style="color:var(--color-accent)">+41 records</strong>.
+          The full chart follows below.
+        </p>
+      </div>
+      <dl class="dash-hero-meta reveal reveal-2">
+        <div>
+          <dt class="label">Mean Δ</dt>
+          <dd class="h-metric" data-countup="3.7">3.7</dd>
+          <dd class="delta delta-up">▲ 0.4 vs last run</dd>
+        </div>
+        <div>
+          <dt class="label">Records</dt>
+          <dd class="h-metric" data-countup="2148">2,148</dd>
+          <dd class="delta delta-eq">= +212 from prior</dd>
+        </div>
+      </dl>
+    </section>
+
+    <!-- ─── STATE SWITCHER (handoff / demo) ─────────────────────── -->
+    <div class="state-switcher reveal-2" role="group" aria-label="Preview dashboard state">
+      <button type="button" data-state="loading">Loading</button>
+      <button type="button" data-state="empty" aria-pressed="false">Empty</button>
+      <button type="button" data-state="error" aria-pressed="false">Error</button>
+      <button type="button" data-state="success" aria-pressed="true">Success</button>
+    </div>
+
+    <!-- ─── STATE: LOADING (skeleton) ───────────────────────────── -->
+    <section data-state-view="loading" hidden>
+      <div class="skel-grid" aria-busy="true" aria-label="Loading metrics">
+        <div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div>
+      </div>
+      <div class="skel-row">
+        <div class="skel"></div>
+        <div class="skel"></div>
+      </div>
+    </section>
+
+    <!-- ─── STATE: EMPTY ─────────────────────────────────────────── -->
+    <section data-state-view="empty" hidden>
+      <div class="state-canvas" role="status">
+        <svg class="empty-mark" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="8" y="14" width="48" height="38" rx="4" />
+          <path d="M8 24h48" />
+          <path d="M18 36h12" />
+          <path d="M18 44h20" />
+          <circle cx="50" cy="19" r="1.5" fill="currentColor" />
+          <circle cx="44" cy="19" r="1.5" fill="currentColor" />
+        </svg>
+        <h2>No report yet.</h2>
+        <p>Drop a JSONL file — or two — and the dashboard will render the full evaluation: per-step accuracy, model comparison, and the records that didn't quite make it.</p>
+        <div class="state-actions">
+          <button class="btn btn-primary" type="button">
+            <svg class="icon icon-18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            Upload JSONL
+          </button>
+          <button class="btn btn-ghost" type="button">Try sample data</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── STATE: ERROR ─────────────────────────────────────────── -->
+    <section data-state-view="error" hidden>
+      <div class="state-canvas" role="alert" aria-live="polite">
+        <svg class="empty-mark" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--color-danger);opacity:.9">
+          <path d="M32 8 4 56h56L32 8z" />
+          <path d="M32 26v14" />
+          <circle cx="32" cy="46" r="1.4" fill="currentColor" />
+        </svg>
+        <h2>The file couldn't be parsed.</h2>
+        <p>We couldn't read this JSONL — likely a missing <code style="font-family:var(--font-mono);color:var(--color-text)">gold_output</code> or <code style="font-family:var(--font-mono);color:var(--color-text)">prediction_output</code> column. Re-check the schema and try again.</p>
+        <div class="state-actions">
+          <button class="btn btn-primary" type="button">Try again</button>
+          <button class="btn btn-ghost" type="button">View schema</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── STATE: SUCCESS (default visible) ────────────────────── -->
+    <div data-state-view="success">
+
+      <!-- Upload zone -->
+      <section class="upload-zone reveal-2" data-upload-zone data-ai-id="upload-zone" aria-labelledby="upload-h">
+        <div>
+          <span class="eyebrow">Continue working</span>
+          <h2 id="upload-h">Drop another file to extend this run.</h2>
+          <p>Single model for a fresh report, or pair it with a second to switch into comparison mode.</p>
+        </div>
+        <div class="upload-actions">
+          <button class="btn btn-primary" type="button" data-add-model>
+            <svg class="icon icon-18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            Add Model 2
+          </button>
+          <button class="btn btn-ghost" type="button">
+            <svg class="icon icon-18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            Clear all
+          </button>
+        </div>
+      </section>
+
+      <!-- KPI Row -->
+      <section class="kpi-row reveal-2" aria-label="Headline metrics">
+        <article class="kpi">
+          <div class="label">Mean accuracy</div>
+          <span class="h-metric" data-countup="87.4">87.4%</span>
+          <div class="delta delta-up">▲ 2.1 pts vs prior run</div>
+        </article>
+        <article class="kpi">
+          <div class="label">Perfect records</div>
+          <span class="h-metric" data-countup="1284">1,284</span>
+          <div class="delta delta-up">▲ 9.4% vs prior run</div>
+        </article>
+        <article class="kpi">
+          <div class="label">Valid / Skipped</div>
+          <span class="h-metric">2,132 <span class="muted" style="font-size:var(--text-xl)">/ 16</span></span>
+          <div class="delta">0.7% skipped</div>
+        </article>
+        <article class="kpi">
+          <div class="label">Median step score</div>
+          <span class="h-metric" data-countup="91">91%</span>
+          <div class="delta delta-eq">= stable</div>
+        </article>
+      </section>
+
+      <!-- Comparison section (initially hidden until Add Model 2) -->
+      <section data-compare-section hidden aria-labelledby="compare-h">
+        <div class="section-header">
+          <div class="h-section">
+            <span>Side-by-side comparison</span>
+            <small>Two models, evaluated on identical records</small>
+          </div>
+          <span class="pill pill-gold">Model B leads by +3.7 mean</span>
+        </div>
+        <div class="compare-grid">
+          <article class="compare-card" data-ai-id="compare-A">
+            <header class="card-eyebrow">
+              <div>
+                <span class="label">Model A</span>
+                <h4 class="model-name">GPT-Scout · v3</h4>
+              </div>
+              <span class="pill">Primary</span>
+            </header>
+            <div class="compare-metrics">
+              <div class="compare-metric">
+                <div class="label">Mean</div>
+                <div class="h-metric">87.4%</div>
+                <span class="compare-pill pill-warning pill">Equal mean</span>
+              </div>
+              <div class="compare-metric">
+                <div class="label">Perfect</div>
+                <div class="h-metric">1,284</div>
+                <span class="compare-pill pill-danger pill">−41 vs B</span>
+              </div>
+              <div class="compare-metric">
+                <div class="label">Median</div>
+                <div class="h-metric">91%</div>
+                <span class="compare-pill pill-success pill">+4 vs B</span>
+              </div>
+            </div>
+          </article>
+          <article class="compare-card" data-ai-id="compare-B">
+            <header class="card-eyebrow">
+              <div>
+                <span class="label">Model B</span>
+                <h4 class="model-name">Glyph-Reasoner · r2</h4>
+              </div>
+              <span class="pill pill-gold">Challenger</span>
+            </header>
+            <div class="compare-metrics">
+              <div class="compare-metric">
+                <div class="label">Mean</div>
+                <div class="h-metric">91.1%</div>
+                <span class="compare-pill pill-warning pill">Equal mean</span>
+              </div>
+              <div class="compare-metric">
+                <div class="label">Perfect</div>
+                <div class="h-metric">1,325</div>
+                <span class="compare-pill pill-success pill">+41 vs A</span>
+              </div>
+              <div class="compare-metric">
+                <div class="label">Median</div>
+                <div class="h-metric">87%</div>
+                <span class="compare-pill pill-danger pill">−4 vs A</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Main grid: per-step accuracy + step breakdown -->
+      <section aria-labelledby="perf-h">
+        <div class="section-header">
+          <div class="h-section">
+            <span id="perf-h">Per-step accuracy</span>
+            <small>Eight evaluation steps, ranked by current run</small>
+          </div>
+          <span class="pill pill-success">All steps valid</span>
+        </div>
+
+        <div class="main-grid">
+          <article class="panel" data-ai-id="chart-panel">
+            <header class="panel-title">
+              <h3>Accuracy by step</h3>
+              <span class="meta">Bar chart · % correct</span>
+            </header>
+            <div class="chart-wrap" aria-label="Per-step accuracy chart">
+              <svg viewBox="0 0 600 320" preserveAspectRatio="none" style="width:100%;height:100%">
+                <!-- baseline + grid -->
+                <line x1="40" y1="280" x2="580" y2="280" stroke="rgba(232,224,208,0.1)" />
+                <line x1="40" y1="220" x2="580" y2="220" stroke="rgba(232,224,208,0.05)" stroke-dasharray="2 4" />
+                <line x1="40" y1="160" x2="580" y2="160" stroke="rgba(232,224,208,0.05)" stroke-dasharray="2 4" />
+                <line x1="40" y1="100" x2="580" y2="100" stroke="rgba(232,224,208,0.05)" stroke-dasharray="2 4" />
+                <line x1="40" y1="40"  x2="580" y2="40"  stroke="rgba(232,224,208,0.05)" stroke-dasharray="2 4" />
+                <text x="32" y="284" text-anchor="end" fill="#5a5448" font-family="JetBrains Mono" font-size="10">0</text>
+                <text x="32" y="164" text-anchor="end" fill="#5a5448" font-family="JetBrains Mono" font-size="10">50</text>
+                <text x="32" y="44"  text-anchor="end" fill="#5a5448" font-family="JetBrains Mono" font-size="10">100</text>
+
+                <!-- bars (steps 1..8) -->
+                <g font-family="DM Sans" font-size="11" fill="#8a8278">
+                  <g><rect x="60"  y="44"  width="48" height="236" rx="3" fill="#c9a96e" /><text x="84"  y="304" text-anchor="middle">S1 Identify</text></g>
+                  <g><rect x="130" y="60"  width="48" height="220" rx="3" fill="#c9a96e" /><text x="154" y="304" text-anchor="middle">S2 Frame</text></g>
+                  <g><rect x="200" y="80"  width="48" height="200" rx="3" fill="#c9a96e" /><text x="224" y="304" text-anchor="middle">S3 Reason</text></g>
+                  <g><rect x="270" y="92"  width="48" height="188" rx="3" fill="#d6b478" /><text x="294" y="304" text-anchor="middle">S4 Cite</text></g>
+                  <g><rect x="340" y="116" width="48" height="164" rx="3" fill="#d6b478" /><text x="364" y="304" text-anchor="middle">S5 Verify</text></g>
+                  <g><rect x="410" y="64"  width="48" height="216" rx="3" fill="#c9a96e" /><text x="434" y="304" text-anchor="middle">S6 Synth</text></g>
+                  <g><rect x="480" y="120" width="48" height="160" rx="3" fill="#a89060" /><text x="504" y="304" text-anchor="middle">S7 Score</text></g>
+                  <g><rect x="550" y="40"  width="20" height="240" rx="3" fill="#c9a96e" opacity=".5" /></g>
+                </g>
+
+                <!-- bar value labels -->
+                <g font-family="JetBrains Mono" font-size="11" fill="#e8e0d0" font-weight="500">
+                  <text x="84"  y="36" text-anchor="middle">98</text>
+                  <text x="154" y="52" text-anchor="middle">92</text>
+                  <text x="224" y="72" text-anchor="middle">83</text>
+                  <text x="294" y="84" text-anchor="middle">78</text>
+                  <text x="364" y="108" text-anchor="middle">68</text>
+                  <text x="434" y="56" text-anchor="middle">90</text>
+                  <text x="504" y="112" text-anchor="middle">66</text>
+                </g>
+              </svg>
+            </div>
+            <div class="chart-legend">
+              <span><span class="legend-swatch" style="background:#c9a96e"></span>Model A</span>
+              <span><span class="legend-swatch" style="background:#6366f1"></span>Model B (when compared)</span>
+              <span class="muted">8 steps · 2,148 records</span>
+            </div>
+          </article>
+
+          <article class="panel" data-ai-id="step-list-panel">
+            <header class="panel-title">
+              <h3>Step breakdown</h3>
+              <span class="meta">Ranked · descending</span>
+            </header>
+            <ul class="step-list">
+              <li class="step-row">
+                <span class="step-idx">S1</span>
+                <div>
+                  <div class="step-name">Identify</div>
+                  <div class="step-bar"><span style="width:98%"></span></div>
+                </div>
+                <span class="step-val">98%</span>
+              </li>
+              <li class="step-row">
+                <span class="step-idx">S2</span>
+                <div>
+                  <div class="step-name">Frame</div>
+                  <div class="step-bar"><span style="width:92%"></span></div>
+                </div>
+                <span class="step-val">92%</span>
+              </li>
+              <li class="step-row">
+                <span class="step-idx">S6</span>
+                <div>
+                  <div class="step-name">Synthesize</div>
+                  <div class="step-bar"><span style="width:90%"></span></div>
+                </div>
+                <span class="step-val">90%</span>
+              </li>
+              <li class="step-row">
+                <span class="step-idx">S3</span>
+                <div>
+                  <div class="step-name">Reason</div>
+                  <div class="step-bar"><span style="width:83%"></span></div>
+                </div>
+                <span class="step-val">83%</span>
+              </li>
+              <li class="step-row">
+                <span class="step-idx">S4</span>
+                <div>
+                  <div class="step-name">Cite</div>
+                  <div class="step-bar"><span style="width:78%"></span></div>
+                </div>
+                <span class="step-val">78%</span>
+              </li>
+              <li class="step-row">
+                <span class="step-idx">S5</span>
+                <div>
+                  <div class="step-name">Verify</div>
+                  <div class="step-bar"><span style="width:68%"></span></div>
+                </div>
+                <span class="step-val">68%</span>
+              </li>
+              <li class="step-row">
+                <span class="step-idx">S7</span>
+                <div>
+                  <div class="step-name">Score</div>
+                  <div class="step-bar"><span style="width:66%"></span></div>
+                </div>
+                <span class="step-val">66%</span>
+              </li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <!-- Wrong cases + raw browser -->
+      <section aria-labelledby="drilldown-h">
+        <div class="section-header">
+          <div class="h-section">
+            <span id="drilldown-h">Drill down</span>
+            <small>Where the model hesitated — and what it said</small>
+          </div>
+        </div>
+        <div class="split-row">
+          <article class="panel" data-ai-id="wrong-cases">
+            <header class="panel-title">
+              <h3>Wrong cases</h3>
+              <span class="meta">186 records · 8.6%</span>
+            </header>
+            <ul class="case-list">
+              <li class="case-row">
+                <header>
+                  <span class="case-id">#02311 · S5 Verify</span>
+                  <span class="pill pill-danger">Mismatch</span>
+                </header>
+                <div class="case-diff">
+                  <div class="col">
+                    <span class="col-label">Gold</span>
+                    <code>{r:"S", g:"consistent"}</code>
+                  </div>
+                  <div class="col">
+                    <span class="col-label">Predicted</span>
+                    <code>{r:"F", g:"ambiguous"}</code>
+                  </div>
+                </div>
+              </li>
+              <li class="case-row">
+                <header>
+                  <span class="case-id">#02874 · S7 Score</span>
+                  <span class="pill pill-danger">Off-by-one</span>
+                </header>
+                <div class="case-diff">
+                  <div class="col">
+                    <span class="col-label">Gold</span>
+                    <code>{r:"S", e:"score=2"}</code>
+                  </div>
+                  <div class="col">
+                    <span class="col-label">Predicted</span>
+                    <code>{r:"F", e:"score=1"}</code>
+                  </div>
+                </div>
+              </li>
+              <li class="case-row">
+                <header>
+                  <span class="case-id">#03014 · S4 Cite</span>
+                  <span class="pill pill-warning">Missing source</span>
+                </header>
+                <div class="case-diff">
+                  <div class="col">
+                    <span class="col-label">Gold</span>
+                    <code>{r:"S", g:"§3.2"}</code>
+                  </div>
+                  <div class="col">
+                    <span class="col-label">Predicted</span>
+                    <code>{r:"MISSING"}</code>
+                  </div>
+                </div>
+              </li>
+            </ul>
+          </article>
+
+          <article class="panel" data-ai-id="raw-browser">
+            <header class="panel-title">
+              <h3>Raw record browser</h3>
+              <span class="meta">Navigate 2,148 records</span>
+            </header>
+            <div role="tablist" aria-label="Raw record view" style="display:flex;gap:var(--space-3);margin-bottom:var(--space-4)">
+              <button role="tab" id="tab-pretty" aria-selected="true" aria-controls="panel-pretty" tabindex="0"
+                style="padding:8px 14px;border-radius:var(--radius-control);font-size:var(--text-xs);letter-spacing:.16em;text-transform:uppercase;color:var(--color-text);background:rgba(201,169,110,.12);border:1px solid var(--color-rule-gold)">Pretty</button>
+              <button role="tab" id="tab-json" aria-selected="false" aria-controls="panel-json" tabindex="-1"
+                style="padding:8px 14px;border-radius:var(--radius-control);font-size:var(--text-xs);letter-spacing:.16em;text-transform:uppercase;color:var(--color-text-muted);background:transparent;border:1px solid var(--color-border)">JSON</button>
+              <button role="tab" id="tab-side" aria-selected="false" aria-controls="panel-side" tabindex="-1"
+                style="padding:8px 14px;border-radius:var(--radius-control);font-size:var(--text-xs);letter-spacing:.16em;text-transform:uppercase;color:var(--color-text-muted);background:transparent;border:1px solid var(--color-border)">Side-by-side</button>
+            </div>
+
+            <div role="tabpanel" id="panel-pretty" aria-labelledby="tab-pretty">
+              <ol style="list-style:none;padding:0;margin:0;counter-reset:r">
+                <li style="padding:var(--space-3) 0;border-bottom:var(--hairline);display:flex;justify-content:space-between">
+                  <span style="font-family:var(--font-mono);color:var(--color-text-muted)">#02310</span>
+                  <span class="pill pill-success">S · 8/8 steps</span>
+                </li>
+                <li style="padding:var(--space-3) 0;border-bottom:var(--hairline);display:flex;justify-content:space-between">
+                  <span style="font-family:var(--font-mono);color:var(--color-text-muted)">#02311</span>
+                  <span class="pill pill-danger">F · 7/8 steps</span>
+                </li>
+                <li style="padding:var(--space-3) 0;border-bottom:var(--hairline);display:flex;justify-content:space-between">
+                  <span style="font-family:var(--font-mono);color:var(--color-text-muted)">#02312</span>
+                  <span class="pill pill-success">S · 8/8 steps</span>
+                </li>
+                <li style="padding:var(--space-3) 0;border-bottom:var(--hairline);display:flex;justify-content:space-between">
+                  <span style="font-family:var(--font-mono);color:var(--color-text-muted)">#02313</span>
+                  <span class="pill pill-warning">7/8 steps · missing source</span>
+                </li>
+                <li style="padding:var(--space-3) 0;display:flex;justify-content:space-between">
+                  <span style="font-family:var(--font-mono);color:var(--color-text-muted)">#02314</span>
+                  <span class="pill pill-success">S · 8/8 steps</span>
+                </li>
+              </ol>
+            </div>
+
+            <div role="tabpanel" id="panel-json" aria-labelledby="tab-json" hidden>
+              <pre style="background:var(--color-inset);border:var(--hairline);border-radius:var(--radius-inset);padding:var(--space-4);font-family:var(--font-mono);font-size:11px;line-height:1.6;color:var(--color-text);overflow:auto;max-height:280px"><code>{
+  "id": "02311",
+  "gold_output": [
+    {"id":5,"r":"S","g":"consistent"}
+  ],
+  "prediction_output": "[{\"id\":5,\"r\":\"F\",\"g\":\"ambiguous\"}]"
+}</code></pre>
+            </div>
+
+            <div role="tabpanel" id="panel-side" aria-labelledby="tab-side" hidden>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);font-family:var(--font-mono);font-size:11px">
+                <div style="background:var(--color-inset);padding:var(--space-3);border-radius:var(--radius-inset)">
+                  <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--color-text-muted);margin-bottom:6px">Gold</div>
+                  <code style="color:var(--color-text);line-height:1.5;white-space:pre-wrap">{id:5, r:"S"}</code>
+                </div>
+                <div style="background:var(--color-inset);padding:var(--space-3);border-radius:var(--radius-inset)">
+                  <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--color-text-muted);margin-bottom:6px">Predicted</div>
+                  <code style="color:var(--color-danger);line-height:1.5;white-space:pre-wrap">{id:5, r:"F"}</code>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Colophon -->
+      <footer class="colophon">
+        <span>Report QC · Editorial Edition · Built with Lora + DM Sans</span>
+        <span>Run complete · No further action required</span>
+      </footer>
+
+    </div>
+  </main>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/desktop-dashboard.js"></script>
+</body>
+</html>

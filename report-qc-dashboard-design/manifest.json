@@ -1,0 +1,32 @@
+{
+  "app": "report-qc-dashboard",
+  "platforms": ["desktop"],
+  "style": "midnight-editorial",
+  "palette": "deep-navy-data",
+  "color_scheme_priority": "dark_first",
+  "screens": [
+    "desktop-dashboard"
+  ],
+  "html": [
+    "desktop-dashboard.html"
+  ],
+  "css": [
+    "foundation.css",
+    "shared.css",
+    "desktop-dashboard.css"
+  ],
+  "js": [
+    "app.js",
+    "desktop-dashboard.js"
+  ],
+  "sharedCss": [
+    "foundation.css",
+    "shared.css"
+  ],
+  "sharedJs": [
+    "app.js"
+  ],
+  "states": ["loading", "empty", "error", "success"],
+  "default_state": "success",
+  "notes": "Single Desktop screen with all 4 CJX states toggleable via the state-switcher control near the top. Hero typography uses editorial italic accents (Lora) over the body sans (DM Sans). Radius grammar follows Editorial/Luxury family: shell 20 / surface 14 / inset 10 / control 8 / tight 6."
+}

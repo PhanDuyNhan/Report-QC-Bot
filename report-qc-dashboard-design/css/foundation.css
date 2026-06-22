@@ -1,0 +1,93 @@
+/* FROZEN FOUNDATION TOKENS — DO NOT MODIFY
+   Project: Report QC Dashboard
+   Style: Midnight Editorial (#15 in design-styles-catalog)
+   Palette: Deep Navy Data (dark-mode-first)
+   Platform: Desktop (max-w 1280px)
+*/
+:root {
+  /* Color — Deep Navy Data */
+  --color-primary: #c9a96e;          /* warm gold accent — for emphasis, key metrics */
+  --color-secondary: #6366f1;        /* indigo — model B / secondary data series */
+  --color-accent: #10b981;           /* emerald — success / improvement indicators */
+  --color-warning: #f59e0b;          /* amber — equal performance indicator */
+  --color-danger: #ef4444;           /* red — regression / lower performance */
+
+  --color-bg: #0f1419;               /* deep navy — primary canvas */
+  --color-bg-elevated: #161c28;      /* one-step elevated surface */
+  --color-surface: #1a2030;          /* primary surface (cards, panels) */
+  --color-surface-2: #232a3d;        /* secondary surface (nested panels) */
+  --color-inset: #0b1018;            /* deepest inset for state canvases */
+
+  --color-text: #e8e0d0;             /* ivory — primary text */
+  --color-text-muted: #8a8278;       /* warm muted — secondary text */
+  --color-text-dim: #5a5448;         /* dim — labels, captions */
+  --color-border: rgba(232, 224, 208, 0.08);
+  --color-border-strong: rgba(232, 224, 208, 0.16);
+  --color-rule-gold: rgba(201, 169, 110, 0.3);
+  --color-rule-ivory: rgba(232, 224, 208, 0.08);
+
+  /* Typography — Midnight Editorial */
+  --font-heading: "Lora", "Source Serif Pro", Georgia, serif;
+  --font-body: "DM Sans", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+
+  /* Modular type scale (Major Third 1.250) */
+  --text-xs: 0.75rem;     /* 12px — captions, micro labels */
+  --text-sm: 0.875rem;    /* 14px — small body */
+  --text-base: 1rem;      /* 16px — body */
+  --text-lg: 1.125rem;    /* 18px — lead body */
+  --text-xl: 1.375rem;    /* 22px — small heading */
+  --text-2xl: 1.75rem;    /* 28px — section heading */
+  --text-3xl: 2.25rem;    /* 36px — display heading */
+  --text-4xl: 3rem;       /* 48px — hero number */
+  --text-5xl: 3.75rem;    /* 60px — masthead */
+
+  /* Spatial rhythm (8px base) */
+  --space-base: 8px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+
+  /* Radius grammar — Editorial / Luxury family
+     shell > surface > inset > control > tight */
+  --radius-shell: 20px;
+  --radius-surface: 14px;
+  --radius-inset: 10px;
+  --radius-control: 8px;
+  --radius-tight: 6px;
+  --radius-pill: 9999px;
+
+  /* Raw scale (kept for explicit use) */
+  --radius-1: 6px;
+  --radius-2: 8px;
+  --radius-3: 10px;
+  --radius-4: 14px;
+  --radius-5: 20px;
+
+  /* Motion — cinematic gravity (no spring) */
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-smooth: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-cinema: cubic-bezier(0.7, 0, 0.3, 1);
+
+  --duration-micro: 150ms;
+  --duration-state: 280ms;
+  --duration-entrance: 420ms;
+  --duration-reveal: 600ms;
+
+  /* Shadows — multi-layered, dark-mode tuned */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow-inset: inset 0 1px 0 rgba(232, 224, 208, 0.04);
+
+  /* Hairlines */
+  --hairline: 1px solid var(--color-border);
+  --hairline-gold: 1px solid var(--color-rule-gold);
+  --hairline-strong: 1px solid var(--color-border-strong);
+}
