@@ -1161,18 +1161,141 @@ function RawRecordBrowser({ raw }) {
   );
 }
 
+function ComparisonMetrics({ data1, data2 }) {
+  const betterModel = data1.meanAcc > data2.meanAcc ? '1' : data2.meanAcc > data1.meanAcc ? '2' : 'tie';
+  const accuracy_diff = Math.abs(data1.meanAcc - data2.meanAcc);
+  const perfect_diff = Math.abs(data1.perfect - data2.perfect);
+
+  return (
+    <div className="comparison-metrics">
+      <div className="metric-row">
+        <div className="metric-item">
+          <div className="metric-label">Model 1 Mean Acc</div>
+          <div className={`metric-value ${betterModel === '1' ? 'better' : betterModel === 'tie' ? 'equal' : 'worse'}`}>
+            {data1.meanAcc}%
+          </div>
+        </div>
+        <div className="metric-item">
+          <div className="metric-label">Difference</div>
+          <div className="metric-value diff">{accuracy_diff.toFixed(1)}%</div>
+        </div>
+        <div className="metric-item">
+          <div className="metric-label">Model 2 Mean Acc</div>
+          <div className={`metric-value ${betterModel === '2' ? 'better' : betterModel === 'tie' ? 'equal' : 'worse'}`}>
+            {data2.meanAcc}%
+          </div>
+        </div>
+      </div>
+      <div className="metric-row">
+        <div className="metric-item">
+          <div className="metric-label">Model 1 Perfect</div>
+          <div className={`metric-value ${data1.perfect > data2.perfect ? 'better' : data1.perfect === data2.perfect ? 'equal' : 'worse'}`}>
+            {data1.perfect}/{data1.valid.length}
+          </div>
+        </div>
+        <div className="metric-item">
+          <div className="metric-label">Difference</div>
+          <div className="metric-value diff">{perfect_diff}</div>
+        </div>
+        <div className="metric-item">
+          <div className="metric-label">Model 2 Perfect</div>
+          <div className={`metric-value ${data2.perfect > data1.perfect ? 'better' : data2.perfect === data1.perfect ? 'equal' : 'worse'}`}>
+            {data2.perfect}/{data2.valid.length}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ComparisonCharts({ data1, data2 }) {
+  const accRef1 = useRef(null);
+  const accRef2 = useRef(null);
+
+  useEffect(() => {
+    if (!data1 || !data2) return undefined;
+
+    const allSteps = Array.from(new Set([...data1.steps, ...data2.steps])).sort((a, b) => a - b);
+    const labels = allSteps.map((step) => `Step ${step}`);
+    const accs1 = allSteps.map((step) => data1.stepAcc[step] || 0);
+    const accs2 = allSteps.map((step) => data2.stepAcc[step] || 0);
+
+    const axisColor = '#94a3b8';
+    const gridColor = '#334155';
+
+    const charts = [
+      new Chart(accRef1.current, {
+        type: 'bar',
+        data: { 
+          labels, 
+          datasets: [{ 
+            label: 'Model 1',
+            data: accs1, 
+            backgroundColor: '#c084fc',
+            borderRadius: 4 
+          }] 
+        },
+        options: {
+          plugins: { legend: { labels: { color: axisColor } }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw}%` } } },
+          scales: {
+            x: { ticks: { color: axisColor }, grid: { color: '#1e293b' } },
+            y: { max: 110, ticks: { color: axisColor, callback: (value) => `${value}%` }, grid: { color: gridColor } },
+          },
+        },
+      }),
+      new Chart(accRef2.current, {
+        type: 'bar',
+        data: { 
+          labels, 
+          datasets: [{ 
+            label: 'Model 2',
+            data: accs2, 
+            backgroundColor: '#22d3ee',
+            borderRadius: 4 
+          }] 
+        },
+        options: {
+          plugins: { legend: { labels: { color: axisColor } }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw}%` } } },
+          scales: {
+            x: { ticks: { color: axisColor }, grid: { color: '#1e293b' } },
+            y: { max: 110, ticks: { color: axisColor, callback: (value) => `${value}%` }, grid: { color: gridColor } },
+          },
+        },
+      }),
+    ];
+
+    return () => charts.forEach((chart) => chart.destroy());
+  }, [data1, data2]);
+
+  return (
+    <div className="charts">
+      <div className="chart-box">
+        <div className="chart-title">Model 1 - Per-Step Accuracy %</div>
+        <canvas ref={accRef1} height="220" />
+      </div>
+      <div className="chart-box">
+        <div className="chart-title">Model 2 - Per-Step Accuracy %</div>
+        <canvas ref={accRef2} height="220" />
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
-  const [data, setData] = useState(null);
+  const [data1, setData1] = useState(null);
+  const [data2, setData2] = useState(null);
   const [error, setError] = useState('');
   const [dragging, setDragging] = useState(false);
-  const fileInputRef = useRef(null);
+  const fileInputRef1 = useRef(null);
+  const fileInputRef2 = useRef(null);
 
-  const handleFile = (file) => {
+  const processFileData = (file, callback) => {
     setError('');
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        setData(processData(String(event.target.result).split('\n')));
+        const processed = processData(String(event.target.result).split('\n'));
+        callback(processed);
         // Trigger dragon celebration animation
         window.dispatchEvent(new CustomEvent('qc-file-uploaded'));
       } catch (err) {
@@ -1182,53 +1305,102 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  const handleFile1 = (file) => {
+    processFileData(file, setData1);
+  };
+
+  const handleFile2 = (file) => {
+    processFileData(file, setData2);
+  };
+
+  const handleDrop = (event) => {
+    event.preventDefault();
+    setDragging(false);
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length === 0) return;
+    
+    if (files.length === 1) {
+      handleFile1(files[0]);
+    } else if (files.length >= 2) {
+      handleFile1(files[0]);
+      handleFile2(files[1]);
+    }
+  };
+
+  const clearAll = () => {
+    setData1(null);
+    setData2(null);
+    setError('');
+  };
+
+  const data = data1; // For backward compatibility with single-model display
+
   return (
     <>
       <h1>QC AI Result Dashboard</h1>
-      <p className="subtitle">Drag & drop a .jsonl result file - supports gold_output / prediction_output format</p>
+      <p className="subtitle">Compare AI model performance - Drag 1 or 2 .jsonl files or browse</p>
 
-      <div
-        className={`upload-zone ${dragging ? 'drag' : ''}`}
-        onClick={() => fileInputRef.current?.click()}
-        onDragLeave={() => setDragging(false)}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setDragging(true);
-        }}
-        onDrop={(event) => {
-          event.preventDefault();
-          setDragging(false);
-          if (event.dataTransfer.files[0]) handleFile(event.dataTransfer.files[0]);
-        }}
-        role="button"
-        tabIndex="0"
-      >
-        <input
-          accept=".jsonl,.json"
-          onChange={(event) => {
-            if (event.target.files[0]) handleFile(event.target.files[0]);
+      {!data1 && !data2 && (
+        <div
+          className={`upload-zone ${dragging ? 'drag' : ''}`}
+          onClick={() => fileInputRef1.current?.click()}
+          onDragLeave={() => setDragging(false)}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setDragging(true);
           }}
-          ref={fileInputRef}
-          type="file"
-        />
-        <div className="upload-icon">Folder</div>
-        <div className="upload-label">Drop <b>.jsonl</b> file here or <span>browse</span></div>
-        <div className="upload-help">Required columns: <code>gold_output</code> · <code>prediction_output</code></div>
-      </div>
+          onDrop={handleDrop}
+          role="button"
+          tabIndex="0"
+        >
+          <input
+            accept=".jsonl,.json"
+            onChange={(event) => {
+              if (event.target.files[0]) handleFile1(event.target.files[0]);
+            }}
+            ref={fileInputRef1}
+            type="file"
+          />
+          <div className="upload-icon">Folder</div>
+          <div className="upload-label">Drop <b>.jsonl</b> file(s) here or <span>browse</span></div>
+          <div className="upload-help">Required columns: <code>gold_output</code> · <code>prediction_output</code></div>
+          <div className="upload-hint">💡 Drop 2 files to compare models, or 1 file for single model report</div>
+        </div>
+      )}
+
+      {(data1 || data2) && (
+        <div className="file-status">
+          {data1 && <span className="file-badge">✓ Model 1 loaded</span>}
+          {data2 && <span className="file-badge">✓ Model 2 loaded</span>}
+          {!data2 && <button className="add-file-btn" onClick={() => fileInputRef2.current?.click()} type="button">+ Add Model 2</button>}
+          {data2 && <button className="add-file-btn" onClick={() => setData2(null)} type="button">✕ Remove Model 2</button>}
+          <button className="add-file-btn clear" onClick={clearAll} type="button">Clear All</button>
+          <input
+            accept=".jsonl,.json"
+            onChange={(event) => {
+              if (event.target.files[0]) handleFile2(event.target.files[0]);
+            }}
+            ref={fileInputRef2}
+            type="file"
+            style={{ display: 'none' }}
+          />
+        </div>
+      )}
 
       {error && <div className="error-msg">{error}</div>}
 
-      {data && (
+      {data1 && !data2 && (
         <div>
+          <h2>Single Model Report</h2>
           <div className="cards">
-            <div className="card blue"><div className="val">{data.meanAcc}%</div><div className="lbl">Mean Acc</div></div>
-            <div className="card green"><div className="val">{data.perfect}</div><div className="lbl">Perfect</div></div>
-            <div className="card yellow"><div className="val">{data.valid.length}</div><div className="lbl">Valid</div></div>
-            <div className="card red"><div className="val">{data.parseErrors.length}</div><div className="lbl">Skipped</div></div>
-            <div className="card gray"><div className="val">{data.raw.length}</div><div className="lbl">Total</div></div>
+            <div className="card blue"><div className="val">{data1.meanAcc}%</div><div className="lbl">Mean Acc</div></div>
+            <div className="card green"><div className="val">{data1.perfect}</div><div className="lbl">Perfect</div></div>
+            <div className="card yellow"><div className="val">{data1.valid.length}</div><div className="lbl">Valid</div></div>
+            <div className="card red"><div className="val">{data1.parseErrors.length}</div><div className="lbl">Skipped</div></div>
+            <div className="card gray"><div className="val">{data1.raw.length}</div><div className="lbl">Total</div></div>
           </div>
 
-          <Charts data={data} />
+          <Charts data={data1} />
 
           <div className="table-box">
             <div className="chart-title table-title">Per-Step Summary</div>
@@ -1237,16 +1409,16 @@ export default function App() {
                 <tr><th>Step</th><th>Correct</th><th>Wrong</th><th>Total</th><th>Accuracy</th></tr>
               </thead>
               <tbody>
-                {data.steps.map((step) => {
-                  const correct = data.stepCorrect[step] || 0;
-                  const total = data.stepTotal[step] || 0;
+                {data1.steps.map((step) => {
+                  const correct = data1.stepCorrect[step] || 0;
+                  const total = data1.stepTotal[step] || 0;
                   return (
                     <tr key={step}>
                       <td>Step {step}</td>
                       <td className="correct">{correct}</td>
                       <td className="wrong">{total - correct}</td>
                       <td className="total">{total}</td>
-                      <td><AccuracyBadge value={data.stepAcc[step]} /></td>
+                      <td><AccuracyBadge value={data1.stepAcc[step]} /></td>
                     </tr>
                   );
                 })}
@@ -1254,7 +1426,15 @@ export default function App() {
             </table>
           </div>
 
-          <WrongCases data={data} />
+          <WrongCases data={data1} />
+        </div>
+      )}
+
+      {data1 && data2 && (
+        <div>
+          <h2>Model Comparison Report</h2>
+          <ComparisonMetrics data1={data1} data2={data2} />
+          <ComparisonCharts data1={data1} data2={data2} />
         </div>
       )}
 
