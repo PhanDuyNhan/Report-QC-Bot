@@ -1,6 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Chart from 'chart.js/auto';
 
+const myTrainFiles = import.meta.glob('../models/my-train/*.jsonl', { query: '?raw', import: 'default', eager: true });
+const modelOtherFiles = import.meta.glob('../models/model-other/*.jsonl', { query: '?raw', import: 'default', eager: true });
+
+function buildFileList(modules) {
+  return Object.entries(modules)
+    .map(([path, content]) => ({
+      path,
+      name: path.split('/').pop().replace(/\.jsonl$/i, ''),
+      content,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+const MY_TRAIN_LIST = buildFileList(myTrainFiles);
+const MODEL_OTHER_LIST = buildFileList(modelOtherFiles);
+
 function Dragon() {
   const canvasRef = useRef(null);
   const [isMuted, setIsMuted] = useState(true);
@@ -1161,16 +1177,18 @@ function RawRecordBrowser({ raw }) {
   );
 }
 
-function ComparisonMetrics({ data1, data2 }) {
+function ComparisonMetrics({ data1, data2, name1, name2 }) {
   const betterModel = data1.meanAcc > data2.meanAcc ? '1' : data2.meanAcc > data1.meanAcc ? '2' : 'tie';
   const accuracy_diff = Math.abs(data1.meanAcc - data2.meanAcc);
   const perfect_diff = Math.abs(data1.perfect - data2.perfect);
+  const label1 = name1 || 'Model 1';
+  const label2 = name2 || 'Model 2';
 
   return (
     <div className="comparison-metrics">
       <div className="metric-row">
         <div className="metric-item">
-          <div className="metric-label">Model 1 Mean Acc</div>
+          <div className="metric-label">{label1} Mean Acc</div>
           <div className={`metric-value ${betterModel === '1' ? 'better' : betterModel === 'tie' ? 'equal' : 'worse'}`}>
             {data1.meanAcc}%
           </div>
@@ -1180,7 +1198,7 @@ function ComparisonMetrics({ data1, data2 }) {
           <div className="metric-value diff">{accuracy_diff.toFixed(1)}%</div>
         </div>
         <div className="metric-item">
-          <div className="metric-label">Model 2 Mean Acc</div>
+          <div className="metric-label">{label2} Mean Acc</div>
           <div className={`metric-value ${betterModel === '2' ? 'better' : betterModel === 'tie' ? 'equal' : 'worse'}`}>
             {data2.meanAcc}%
           </div>
@@ -1188,7 +1206,7 @@ function ComparisonMetrics({ data1, data2 }) {
       </div>
       <div className="metric-row">
         <div className="metric-item">
-          <div className="metric-label">Model 1 Perfect</div>
+          <div className="metric-label">{label1} Perfect</div>
           <div className={`metric-value ${data1.perfect > data2.perfect ? 'better' : data1.perfect === data2.perfect ? 'equal' : 'worse'}`}>
             {data1.perfect}/{data1.valid.length}
           </div>
@@ -1198,7 +1216,7 @@ function ComparisonMetrics({ data1, data2 }) {
           <div className="metric-value diff">{perfect_diff}</div>
         </div>
         <div className="metric-item">
-          <div className="metric-label">Model 2 Perfect</div>
+          <div className="metric-label">{label2} Perfect</div>
           <div className={`metric-value ${data2.perfect > data1.perfect ? 'better' : data2.perfect === data1.perfect ? 'equal' : 'worse'}`}>
             {data2.perfect}/{data2.valid.length}
           </div>
@@ -1208,9 +1226,11 @@ function ComparisonMetrics({ data1, data2 }) {
   );
 }
 
-function ComparisonCharts({ data1, data2 }) {
+function ComparisonCharts({ data1, data2, name1, name2 }) {
   const accRef1 = useRef(null);
   const accRef2 = useRef(null);
+  const label1 = name1 || 'Model 1';
+  const label2 = name2 || 'Model 2';
 
   useEffect(() => {
     if (!data1 || !data2) return undefined;
@@ -1226,14 +1246,14 @@ function ComparisonCharts({ data1, data2 }) {
     const charts = [
       new Chart(accRef1.current, {
         type: 'bar',
-        data: { 
-          labels, 
-          datasets: [{ 
-            label: 'Model 1',
-            data: accs1, 
+        data: {
+          labels,
+          datasets: [{
+            label: label1,
+            data: accs1,
             backgroundColor: '#c084fc',
-            borderRadius: 4 
-          }] 
+            borderRadius: 4
+          }]
         },
         options: {
           plugins: { legend: { labels: { color: axisColor } }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw}%` } } },
@@ -1245,14 +1265,14 @@ function ComparisonCharts({ data1, data2 }) {
       }),
       new Chart(accRef2.current, {
         type: 'bar',
-        data: { 
-          labels, 
-          datasets: [{ 
-            label: 'Model 2',
-            data: accs2, 
+        data: {
+          labels,
+          datasets: [{
+            label: label2,
+            data: accs2,
             backgroundColor: '#22d3ee',
-            borderRadius: 4 
-          }] 
+            borderRadius: 4
+          }]
         },
         options: {
           plugins: { legend: { labels: { color: axisColor } }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw}%` } } },
@@ -1265,25 +1285,34 @@ function ComparisonCharts({ data1, data2 }) {
     ];
 
     return () => charts.forEach((chart) => chart.destroy());
-  }, [data1, data2]);
+  }, [data1, data2, label1, label2]);
 
   return (
     <div className="charts">
       <div className="chart-box">
-        <div className="chart-title">Model 1 - Per-Step Accuracy %</div>
+        <div className="chart-title">{label1} - Per-Step Accuracy %</div>
         <canvas ref={accRef1} height="220" />
       </div>
       <div className="chart-box">
-        <div className="chart-title">Model 2 - Per-Step Accuracy %</div>
+        <div className="chart-title">{label2} - Per-Step Accuracy %</div>
         <canvas ref={accRef2} height="220" />
       </div>
     </div>
   );
 }
 
+function stripExt(name) {
+  if (!name) return '';
+  return name.replace(/\.(jsonl|json)$/i, '');
+}
+
 export default function App() {
   const [data1, setData1] = useState(null);
   const [data2, setData2] = useState(null);
+  const [name1, setName1] = useState('');
+  const [name2, setName2] = useState('');
+  const [selected1, setSelected1] = useState('');
+  const [selected2, setSelected2] = useState('');
   const [error, setError] = useState('');
   const [dragging, setDragging] = useState(false);
   const fileInputRef1 = useRef(null);
@@ -1296,7 +1325,6 @@ export default function App() {
       try {
         const processed = processData(String(event.target.result).split('\n'));
         callback(processed);
-        // Trigger dragon celebration animation
         window.dispatchEvent(new CustomEvent('qc-file-uploaded'));
       } catch (err) {
         setError(`Parse error: ${err.message}`);
@@ -1306,11 +1334,44 @@ export default function App() {
   };
 
   const handleFile1 = (file) => {
+    setName1(stripExt(file.name));
+    setSelected1('');
     processFileData(file, setData1);
   };
 
   const handleFile2 = (file) => {
+    setName2(stripExt(file.name));
+    setSelected2('');
     processFileData(file, setData2);
+  };
+
+  const loadFromList = (path, list, setData, setName) => {
+    if (!path) {
+      setData(null);
+      setName('');
+      return;
+    }
+    const item = list.find((file) => file.path === path);
+    if (!item) return;
+    setError('');
+    try {
+      const processed = processData(item.content.split('\n'));
+      setName(item.name);
+      setData(processed);
+      window.dispatchEvent(new CustomEvent('qc-file-uploaded'));
+    } catch (err) {
+      setError(`Parse error: ${err.message}`);
+    }
+  };
+
+  const handleSelect1 = (path) => {
+    setSelected1(path);
+    loadFromList(path, MY_TRAIN_LIST, setData1, setName1);
+  };
+
+  const handleSelect2 = (path) => {
+    setSelected2(path);
+    loadFromList(path, MODEL_OTHER_LIST, setData2, setName2);
   };
 
   const handleDrop = (event) => {
@@ -1330,6 +1391,10 @@ export default function App() {
   const clearAll = () => {
     setData1(null);
     setData2(null);
+    setName1('');
+    setName2('');
+    setSelected1('');
+    setSelected2('');
     setError('');
   };
 
@@ -1338,7 +1403,42 @@ export default function App() {
   return (
     <>
       <h1>QC AI Result Dashboard</h1>
-      <p className="subtitle">Compare AI model performance - Drag 1 or 2 .jsonl files or browse</p>
+      <p className="subtitle">Chọn model từ folder hoặc kéo thả file .jsonl để so sánh</p>
+
+      <div className="model-picker">
+        <div className="picker-col">
+          <label className="picker-label">Model 1 · <span>My train</span></label>
+          <select
+            className="picker-select"
+            value={selected1}
+            onChange={(event) => handleSelect1(event.target.value)}
+          >
+            <option value="">— chọn file —</option>
+            {MY_TRAIN_LIST.map((file) => (
+              <option key={file.path} value={file.path}>{file.name}</option>
+            ))}
+          </select>
+          {MY_TRAIN_LIST.length === 0 && (
+            <div className="picker-empty">Chưa có file. Bỏ .jsonl vào <code>models/my-train/</code></div>
+          )}
+        </div>
+        <div className="picker-col">
+          <label className="picker-label">Model 2 · <span>Model other</span></label>
+          <select
+            className="picker-select"
+            value={selected2}
+            onChange={(event) => handleSelect2(event.target.value)}
+          >
+            <option value="">— chọn file —</option>
+            {MODEL_OTHER_LIST.map((file) => (
+              <option key={file.path} value={file.path}>{file.name}</option>
+            ))}
+          </select>
+          {MODEL_OTHER_LIST.length === 0 && (
+            <div className="picker-empty">Chưa có file. Bỏ .jsonl vào <code>models/model-other/</code></div>
+          )}
+        </div>
+      </div>
 
       {!data1 && !data2 && (
         <div
@@ -1370,10 +1470,10 @@ export default function App() {
 
       {(data1 || data2) && (
         <div className="file-status">
-          {data1 && <span className="file-badge">✓ Model 1 loaded</span>}
-          {data2 && <span className="file-badge">✓ Model 2 loaded</span>}
+          {data1 && <span className="file-badge">✓ {name1 || 'Model 1'} loaded</span>}
+          {data2 && <span className="file-badge">✓ {name2 || 'Model 2'} loaded</span>}
           {!data2 && <button className="add-file-btn" onClick={() => fileInputRef2.current?.click()} type="button">+ Add Model 2</button>}
-          {data2 && <button className="add-file-btn" onClick={() => setData2(null)} type="button">✕ Remove Model 2</button>}
+          {data2 && <button className="add-file-btn" onClick={() => { setData2(null); setName2(''); }} type="button">✕ Remove Model 2</button>}
           <button className="add-file-btn clear" onClick={clearAll} type="button">Clear All</button>
           <input
             accept=".jsonl,.json"
@@ -1391,7 +1491,7 @@ export default function App() {
 
       {data1 && !data2 && (
         <div>
-          <h2>Single Model Report</h2>
+          <h2>Single Model Report{name1 ? ` · ${name1}` : ''}</h2>
           <div className="cards">
             <div className="card blue"><div className="val">{data1.meanAcc}%</div><div className="lbl">Mean Acc</div></div>
             <div className="card green"><div className="val">{data1.perfect}</div><div className="lbl">Perfect</div></div>
@@ -1433,8 +1533,8 @@ export default function App() {
       {data1 && data2 && (
         <div>
           <h2>Model Comparison Report</h2>
-          <ComparisonMetrics data1={data1} data2={data2} />
-          <ComparisonCharts data1={data1} data2={data2} />
+          <ComparisonMetrics data1={data1} data2={data2} name1={name1} name2={name2} />
+          <ComparisonCharts data1={data1} data2={data2} name1={name1} name2={name2} />
         </div>
       )}
 
